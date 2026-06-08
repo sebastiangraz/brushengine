@@ -88,11 +88,13 @@ function CitySection({
             className="seed-input"
             type="number"
             value={c.seed}
-            onChange={(e) => setP({ seed: parseInt(e.target.value || "0", 10) })}
+            onChange={(e) =>
+              setP({ seed: parseInt(e.target.value || "0", 10) })
+            }
           />
           <button
             title="random seed"
-            onClick={() => setP({ seed: Math.floor(Math.random() * 1e9) })}
+            onClick={() => setP({ seed: Math.floor(Math.random() * 1e3) })}
           >
             ⟳
           </button>

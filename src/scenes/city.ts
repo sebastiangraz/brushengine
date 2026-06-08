@@ -59,7 +59,7 @@ export interface CityParams {
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 974961287,
+  seed: 666,
   gridSize: 6,
   heightPeak: 1,
   heightVar: 1,
@@ -424,7 +424,19 @@ export function cityScene(p: CityParams): StrokeData[] {
         const yaw = Math.floor(rng(0, 4));
         const towerFrac = rng(0.4, 0.62);
         const footHfrac = rng(0.28, 0.5);
-        drawLPrism(x0, x1, z0, z1, h, topHeavy, yaw, towerFrac, footHfrac, env, primary);
+        drawLPrism(
+          x0,
+          x1,
+          z0,
+          z1,
+          h,
+          topHeavy,
+          yaw,
+          towerFrac,
+          footHfrac,
+          env,
+          primary,
+        );
         // Tower footprint, for the guideline / spire anchors below.
         const tw = (yaw === 0 || yaw === 2 ? bw : bd) * towerFrac;
         if (yaw === 0) tx1 = x0 + tw;

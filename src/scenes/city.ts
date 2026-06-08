@@ -45,8 +45,10 @@ export interface CityParams {
    * to the half-defined boxes, since they share the footprint).
    */
   footprintVar: number;
-  /** 0..1 — hand-drawn looseness: wobble + guideline overshoot. */
-  looseness: number;
+  /** 0..1 — path wobble: hand-drawn waviness applied to every stroke. */
+  wobble: number;
+  /** 0..1 — length of the left-in guideline / construction overshoots. */
+  guidelineLength: number;
 }
 
 export const DEFAULT_CITY: CityParams = {
@@ -61,7 +63,8 @@ export const DEFAULT_CITY: CityParams = {
   guidelineDensity: 1,
   partialBox: 0.88,
   footprintVar: 1,
-  looseness: 0.3,
+  wobble: 0.2,
+  guidelineLength: 0.4,
 };
 
 const ORDER: (keyof CityParams)[] = [
@@ -73,10 +76,11 @@ const ORDER: (keyof CityParams)[] = [
   "guidelineDensity",
   "partialBox",
   "footprintVar",
-  "looseness",
+  "wobble",
   "heightVar",
   "gridVar",
   "gridGaps",
+  "guidelineLength",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -130,7 +134,7 @@ export function cityScene(p: CityParams): StrokeData[] {
 
   const strokes: StrokeData[] = [];
   let s = 0;
-  const wob = 0.003 + p.looseness * 0.016;
+  const wob = 0.003 + p.wobble * 0.016;
   const push = (
     pts: Vec3[],
     color: string,
@@ -291,16 +295,17 @@ export function cityScene(p: CityParams): StrokeData[] {
 
       // Per-building guidelines: extend the near edge up (spire) and roof out.
       if (chance(p.guidelineDensity)) {
-        const over = (0.4 + p.looseness * 1.8) * rng(0.4, 1.1) * (0.5 + env);
-        seg([x0, h, z0], [x0, h + over, z0], primary, 1.3, 0, 0.6, 4);
+        const over =
+          (0.2 + p.guidelineLength * 2.5) * rng(0.4, 1.1) * (0.5 + env);
+        seg([x0, h, z0], [x0, h + over, z0], primary, 2, 0, 0.6, 4);
       }
       if (chance(p.guidelineDensity * 0.7)) {
-        const over = (0.4 + p.looseness * 1.5) * rng(0.4, 1);
-        seg([x1, h, z0], [x1 + over, h, z0], primary, 1.2, 0, 0.5, 4);
+        const over = (0.2 + p.guidelineLength * 2.2) * rng(0.4, 1);
+        seg([x1, h, z0], [x1 + over, h, z0], primary, 2, 0, 0.5, 4);
       }
       if (chance(p.guidelineDensity * 0.7)) {
-        const over = (0.4 + p.looseness * 1.5) * rng(0.4, 1);
-        seg([x0, h, z1], [x0, h, z1 + over], primary, 1.2, 0, 0.5, 4);
+        const over = (0.2 + p.guidelineLength * 2.2) * rng(0.4, 1);
+        seg([x0, h, z1], [x0, h, z1 + over], primary, 2, 0, 0.5, 4);
       }
 
       // Central spire/antenna for the very tallest towers — visual tension.

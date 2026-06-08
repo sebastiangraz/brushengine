@@ -205,12 +205,20 @@ function CitySection({
           onChange={(v) => setP({ footprintVar: v })}
         />
         <Slider
-          label="looseness"
-          value={c.looseness}
+          label="path wobble"
+          value={c.wobble}
           min={0}
           max={1}
           step={0.01}
-          onChange={(v) => setP({ looseness: v })}
+          onChange={(v) => setP({ wobble: v })}
+        />
+        <Slider
+          label="guideline length"
+          value={c.guidelineLength}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ guidelineLength: v })}
         />
         <button className="reset" onClick={() => setCityParams(DEFAULT_CITY)}>
           reset city defaults

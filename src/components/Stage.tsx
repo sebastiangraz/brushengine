@@ -94,15 +94,20 @@ export function Stage({
     engineRef.current?.setGlobalStyle(globalStyle);
   }, [globalStyle]);
 
-  // --- NDC <-> pixel mapping ---
+  // --- square-frame NDC <-> pixel mapping ---
+  // Mirrors the shader's uFit so guides/handles track the rendered model
+  // regardless of canvas aspect.
   const { w, h } = size;
+  const minDim = Math.min(w, h);
+  const fitX = minDim / w;
+  const fitY = minDim / h;
   const ndcToPx = (n: Vec2) => ({
-    x: (n.x * 0.5 + 0.5) * w,
-    y: (0.5 - n.y * 0.5) * h,
+    x: (n.x * fitX * 0.5 + 0.5) * w,
+    y: (0.5 - n.y * fitY * 0.5) * h,
   });
   const pxToNdc = (x: number, y: number): Vec2 => ({
-    x: (x / w) * 2 - 1,
-    y: 1 - (y / h) * 2,
+    x: ((x / w) * 2 - 1) / fitX,
+    y: (1 - (y / h) * 2) / fitY,
   });
 
   const z = projection.zoom;

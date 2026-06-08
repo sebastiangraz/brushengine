@@ -1,6 +1,10 @@
 import * as THREE from "three";
 
-export const BRUSH_URLS = ["/brushes/stroke1.svg", "/brushes/stroke2.svg"];
+export const BRUSH_URLS = [
+  "/brushes/stroke1.svg",
+  "/brushes/stroke2.svg",
+  "/brushes/stroke3.svg",
+];
 
 /**
  * Load the bundled SVG strokes as textures. SVGs render into an <img>, which we
@@ -8,7 +12,7 @@ export const BRUSH_URLS = ["/brushes/stroke1.svg", "/brushes/stroke2.svg"];
  * per-stroke in the fragment shader.
  */
 export function loadBrushTextures(
-  urls: string[] = BRUSH_URLS
+  urls: string[] = BRUSH_URLS,
 ): Promise<THREE.Texture[]> {
   const loader = new THREE.TextureLoader();
   return Promise.all(
@@ -29,9 +33,9 @@ export function loadBrushTextures(
               resolve(tex);
             },
             undefined,
-            reject
+            reject,
           );
-        })
-    )
+        }),
+    ),
   );
 }

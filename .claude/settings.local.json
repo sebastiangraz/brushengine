@@ -4,7 +4,8 @@
       "PowerShell(npm install *)",
       "PowerShell(npm run *)",
       "PowerShell($env:NODE_NO_WARNINGS=1; Start-Process -NoNewWindow -FilePath \"node\" -ArgumentList \"node_modules/vite/bin/vite.js\",\"preview\",\"--port\",\"4173\" -RedirectStandardOutput \"preview.log\" -RedirectStandardError \"preview.err.log\"; Start-Sleep -Seconds 2; Get-Content preview.log -ErrorAction SilentlyContinue)",
-      "PowerShell(node shot.mjs 2>&1 | Select-Object -Last 20)"
+      "PowerShell(node shot.mjs 2>&1 | Select-Object -Last 20)",
+      "PowerShell($env:NODE_NO_WARNINGS=1; Start-Process -NoNewWindow -FilePath \"node\" -ArgumentList \"node_modules/vite/bin/vite.js\",\"preview\",\"--port\",\"4173\" -RedirectStandardOutput \"preview.log\" -RedirectStandardError \"preview.err.log\"; Start-Sleep -Seconds 2; node shot.mjs 2>&1 | Select-Object -Last 3)"
     ]
   }
 }

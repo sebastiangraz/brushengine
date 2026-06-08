@@ -17,54 +17,53 @@ uniform float uVerticalScale;
 uniform float uZoom;
 
 // --- ribbon / viewport params ---
-uniform float uAspect;          // width / height
-uniform float uWidthPx;         // stroke width in pixels (at depth w=1)
-uniform float uViewportH;       // viewport height in px
+// The model is authored in a square frame (logical NDC, [-1,1] on both axes).
+// uFit maps that square into the actual canvas clip space, preserving the
+// model's aspect ratio (the square is centred; extra space becomes margin).
+uniform vec2  uFit;             // (minDim/width, minDim/height)
+uniform float uMinDim;          // min(width, height) in CSS px
+uniform float uWidthPx;         // stroke width in CSS px (at depth w=1)
 uniform float uThicknessFalloff;// 0 = constant px width, 1 = perspective
 
 varying vec2 vUv;
 
-// Custom 2-point projection. Returns vec3(ndc.x, ndc.y, w).
-// w is the homogeneous depth term: ~1 near the origin, grows with distance.
+// Custom 2-point projection. Returns vec3(q.x, q.y, w) where q is the position
+// in the square authoring frame and w is the homogeneous depth term (~1 near the
+// origin, growing with distance).
 vec3 project(vec3 world) {
   float k = uPerspective;
   float hx = world.x * k * uVpX.x + world.z * k * uVpZ.x + uOrigin.x;
   float hy = world.x * k * uVpX.y + world.y * uVerticalScale + world.z * k * uVpZ.y + uOrigin.y;
   float hw = world.x * k + world.z * k + 1.0;
-  vec2 ndc = vec2(hx, hy) / hw * uZoom;
-  return vec3(ndc, hw);
+  vec2 q = vec2(hx, hy) / hw * uZoom;
+  return vec3(q, hw);
 }
 
 void main() {
   vec3 c = project(aCenter);
-  vec3 p = project(aPrev);
-  vec3 n = project(aNext);
+  vec2 qc = c.xy;
+  vec2 qp = project(aPrev).xy;
+  vec2 qn = project(aNext).xy;
 
-  // Work in aspect-corrected ("isotropic") screen space so the ribbon width is
-  // uniform in pixels and the stroke is never stretched by the canvas aspect.
-  vec2 cs = vec2(c.x * uAspect, c.y);
-  vec2 ps = vec2(p.x * uAspect, p.y);
-  vec2 ns = vec2(n.x * uAspect, n.y);
-
-  vec2 dir = ns - ps;
-  if (length(dir) < 1e-6) dir = cs - ps;        // endpoint fallbacks
-  if (length(dir) < 1e-6) dir = ns - cs;
+  // The square frame is isotropic in pixels, so tangent/normal are computed
+  // directly in it — no aspect correction needed.
+  vec2 dir = qn - qp;
+  if (length(dir) < 1e-6) dir = qc - qp;        // endpoint fallbacks
+  if (length(dir) < 1e-6) dir = qn - qc;
   if (length(dir) < 1e-6) dir = vec2(1.0, 0.0);
   dir = normalize(dir);
-  vec2 normal = vec2(-dir.y, dir.x);            // screen-space perpendicular
+  vec2 normal = vec2(-dir.y, dir.x);
 
-  // Half width in NDC-y units (NDC spans 2 units over the viewport height).
-  float halfWidth = uWidthPx / uViewportH;
+  // Half width in square-frame units: 2 units span minDim px, so px/minDim.
+  float halfWidth = uWidthPx / uMinDim;
 
-  // Thickness vs distance: project() packs the homogeneous depth w in .z.
-  // w==1 near origin -> factor 1; far -> 1/w (< 1).
+  // Thickness vs distance: w==1 near origin -> factor 1; far -> 1/w (< 1).
   float depthScale = mix(1.0, clamp(1.0 / c.z, 0.0, 8.0), uThicknessFalloff);
 
-  vec2 offset = normal * halfWidth * depthScale * aSide;
-  vec2 finalNdc = c.xy + vec2(offset.x / uAspect, offset.y); // back to NDC
+  vec2 q = qc + normal * halfWidth * depthScale * aSide;
 
   vUv = aUv;
-  gl_Position = vec4(finalNdc, 0.0, 1.0);
+  gl_Position = vec4(q * uFit, 0.0, 1.0);
 }
 `;
 

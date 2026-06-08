@@ -99,9 +99,9 @@ export class BrushEngine {
           uPerspective: { value: 0 },
           uVerticalScale: { value: 1 },
           uZoom: { value: 1 },
-          uAspect: { value: 1 },
+          uFit: { value: new THREE.Vector2(1, 1) },
+          uMinDim: { value: 1 },
           uWidthPx: { value: s.style.widthPx },
-          uViewportH: { value: 1 },
           uThicknessFalloff: { value: 0 },
           uBrush: { value: this.brushes[s.style.brush] ?? null },
           uColor: { value: new THREE.Vector3(r, g, b) },
@@ -141,9 +141,10 @@ export class BrushEngine {
 
   private renderOnce = () => {
     const p = this.params;
-    const dpr = this.renderer.getPixelRatio();
-    const viewportH = this.height * dpr;
-    const aspect = this.width / this.height;
+    // Fit the square authoring frame into the canvas (preserve model aspect).
+    const minDim = Math.min(this.width, this.height);
+    const fitX = minDim / this.width;
+    const fitY = minDim / this.height;
 
     for (const e of this.entries) {
       const u = e.material.uniforms;
@@ -153,8 +154,8 @@ export class BrushEngine {
       u.uPerspective.value = p.perspective;
       u.uVerticalScale.value = p.verticalScale;
       u.uZoom.value = p.zoom;
-      u.uAspect.value = aspect;
-      u.uViewportH.value = viewportH;
+      u.uFit.value.set(fitX, fitY);
+      u.uMinDim.value = minDim;
       u.uThicknessFalloff.value = this.global.thicknessFalloff;
       const bi = this.global.brushOverride ?? e.brushIndex;
       if (this.brushes[bi]) u.uBrush.value = this.brushes[bi];

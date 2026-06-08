@@ -61,9 +61,7 @@ export function ControlPanel({
   return (
     <aside className="panel">
       <h1>Brush&nbsp;Engine</h1>
-      <p className="sub">
-        2-point perspective · screen-space brush ribbons
-      </p>
+      <p className="sub">2-point perspective · screen-space brush ribbons</p>
 
       <section>
         <h2>Scene</h2>
@@ -87,6 +85,7 @@ export function ControlPanel({
             { v: null as number | null, label: "auto" },
             { v: 0, label: "stroke 1" },
             { v: 1, label: "stroke 2" },
+            { v: 2, label: "stroke 3" },
           ].map((b) => (
             <button
               key={String(b.v)}

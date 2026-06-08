@@ -29,6 +29,12 @@ export interface CityParams {
    * building can show several different grid densities across its faces.
    */
   gridVar: number;
+  /**
+   * 0..1 — grid intermittence. Higher randomly drops individual grid lines (like
+   * the window patches), leaving partial / broken grids across a face. 0 = solid,
+   * complete grids.
+   */
+  gridGaps: number;
   /** 0..1 — how many left-in guideline / construction strokes. */
   guidelineDensity: number;
   /** 0..1 — how often box edges are omitted or only partially drawn. */
@@ -44,17 +50,18 @@ export interface CityParams {
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 523403759,
-  gridSize: 5,
+  seed: 974961287,
+  gridSize: 6,
   heightPeak: 1,
   heightVar: 1,
   windowDensity: 0.16,
-  gridDensity: 0.41,
-  gridVar: 0.5,
+  gridDensity: 0.1,
+  gridVar: 0.83,
+  gridGaps: 0.35,
   guidelineDensity: 1,
-  partialBox: 1,
+  partialBox: 0.88,
   footprintVar: 1,
-  looseness: 0.5,
+  looseness: 0.3,
 };
 
 const ORDER: (keyof CityParams)[] = [
@@ -69,6 +76,7 @@ const ORDER: (keyof CityParams)[] = [
   "looseness",
   "heightVar",
   "gridVar",
+  "gridGaps",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -191,7 +199,11 @@ export function cityScene(p: CityParams): StrokeData[] {
     const densFactor = Math.exp((rnd() * 2 - 1) * p.gridVar * 1.6);
     const nu = Math.max(1, Math.round((uLen / 0.18) * densFactor));
     const nv = Math.max(1, Math.round((vLen / 0.22) * densFactor));
+    // Per-line keep probability — gridGaps randomly drops lines for a partial,
+    // broken grid (like the intermittent window rows). 0 = every line drawn.
+    const keep = 1 - p.gridGaps * 0.85;
     for (let i = 1; i < nu; i++) {
+      if (!chance(keep)) continue;
       const uu = (uLen * i) / nu;
       seg(
         add(O, mul(u, uu)),
@@ -203,6 +215,7 @@ export function cityScene(p: CityParams): StrokeData[] {
       );
     }
     for (let j = 1; j < nv; j++) {
+      if (!chance(keep)) continue;
       const vv = (vLen * j) / nv;
       seg(
         add(O, mul(v, vv)),
@@ -292,14 +305,15 @@ export function cityScene(p: CityParams): StrokeData[] {
 
       // Central spire/antenna for the very tallest towers — visual tension.
       if (env > 0.8 && chance(0.85)) {
+        const col = pick();
         const cx = (x0 + x1) / 2;
         const cz = (z0 + z1) / 2;
         const sp = rng(1.1, 2.3) * (0.6 + p.heightPeak);
-        seg([cx, h, cz], [cx, h + sp, cz], PALETTE.red, 1.6, 0, 0.9, 4);
+        seg([cx, h, cz], [cx, h + sp, cz], col, 2.2, 0, 0.9, 4);
         for (let t = 0; t < 4; t++) {
           const yy = h + sp * (0.4 + t * 0.16);
           const r = (0.05 * (4 - t)) / 4 + 0.02;
-          seg([cx - r, yy, cz], [cx + r, yy, cz], PALETTE.red, 1.4, 1, 0.85, 2);
+          seg([cx - r, yy, cz], [cx + r, yy, cz], col, 2, 1, 0.85, 2);
         }
       }
     }

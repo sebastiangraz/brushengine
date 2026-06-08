@@ -99,7 +99,8 @@ client. Exclusive sliders: buildings (grid size), height peak, height variabilit
 (downward-only — adds more low-rises while preserving the peak), window density,
 grid-face density, grid variability (per-face roll that spreads façade grids
 symmetrically from very dense to very sparse / nearly gone — 0 means every face
-matches), guideline density, half-box ratio, size variation (footprint
+matches), grid gaps (per-line intermittence that drops grid lines for partial /
+broken grids), guideline density, half-box ratio, size variation (footprint
 width/depth spread — also affects the half-defined boxes), and looseness.
 
 Switching to the city scene also applies a worm's-eye default camera

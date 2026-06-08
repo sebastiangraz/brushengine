@@ -73,12 +73,33 @@ src/
     helpers.ts      subdivide + wobble a segment into a hand-drawn polyline
     box.ts          gridded building
     house.ts        gable house
+    city.ts         generative cityscape (seeded, parametric)
   components/
     Stage.tsx       canvas + SVG overlay (draggable VP handles, guide lines)
     ControlPanel.tsx
   App.tsx
 public/brushes/     stroke1.svg (scratchy), stroke2.svg (bold)
 ```
+
+## Generative city scene
+
+`scenes/city.ts` builds an architect's-sketch skyline as a pure function of
+`(seed, params)`, so it's fully reproducible. Towers sit on an N×N footprint
+grid viewed from the near corner; a Gaussian height envelope (and occupancy
+bias) makes the centre towers tallest. Each tower is assembled from box edges
+(often left partial / "half-defined"), façade grids, intermittent window
+hatching, a central spire, and construction guidelines that overshoot toward
+the vanishing points.
+
+Randomness comes from a seeded `mulberry32` PRNG — no `Math.random`/`Date` in
+the generator — so the same inputs always yield the same city. The panel exposes
+a numeric **seed** plus a base64 **scene code** (`encodeCity`/`decodeCity`) that
+captures seed + all params; copy it to reproduce the exact city on another
+client. Exclusive sliders: buildings (grid size), height peak, window density,
+grid-face density, guideline density, half-box ratio, and looseness.
+
+Switching to the city scene also applies a worm's-eye default camera
+(`CITY_PROJECTION`).
 
 ## Adding your own strokes
 

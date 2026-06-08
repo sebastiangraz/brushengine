@@ -1,4 +1,11 @@
+import { useState } from "react";
 import type { GlobalStyle, ProjectionParams } from "../engine/types";
+import {
+  encodeCity,
+  decodeCity,
+  DEFAULT_CITY,
+  type CityParams,
+} from "../scenes/city";
 
 interface Props {
   projection: ProjectionParams;
@@ -9,6 +16,8 @@ interface Props {
   setScene: (s: string) => void;
   showGuides: boolean;
   setShowGuides: (v: boolean) => void;
+  cityParams: CityParams;
+  setCityParams: (p: CityParams) => void;
   onReset: () => void;
 }
 
@@ -38,8 +47,144 @@ function Slider({
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
       />
-      <span className="ctl-value">{value.toFixed(2)}</span>
+      <span className="ctl-value">
+        {step >= 1 ? value.toFixed(0) : value.toFixed(2)}
+      </span>
     </label>
+  );
+}
+
+function CitySection({
+  cityParams,
+  setCityParams,
+}: {
+  cityParams: CityParams;
+  setCityParams: (p: CityParams) => void;
+}) {
+  const c = cityParams;
+  const setP = (patch: Partial<CityParams>) =>
+    setCityParams({ ...c, ...patch });
+  const code = encodeCity(c);
+  const [loadText, setLoadText] = useState("");
+
+  const load = () => {
+    const t = loadText.trim();
+    if (!t) return;
+    if (/^\d+$/.test(t)) {
+      setP({ seed: parseInt(t, 10) }); // plain seed number
+    } else {
+      const decoded = decodeCity(t);
+      if (decoded) setCityParams(decoded); // full scene code
+    }
+    setLoadText("");
+  };
+
+  return (
+    <>
+      <section>
+        <h2>City seed</h2>
+        <div className="seed-row">
+          <input
+            className="seed-input"
+            type="number"
+            value={c.seed}
+            onChange={(e) => setP({ seed: parseInt(e.target.value || "0", 10) })}
+          />
+          <button
+            title="random seed"
+            onClick={() => setP({ seed: Math.floor(Math.random() * 1e9) })}
+          >
+            ⟳
+          </button>
+        </div>
+
+        <p className="hint" style={{ marginBottom: 6 }}>
+          Scene code — copy to reproduce this exact city elsewhere:
+        </p>
+        <div className="seed-row">
+          <input className="seed-input" readOnly value={code} />
+          <button
+            title="copy scene code"
+            onClick={() => navigator.clipboard?.writeText(code)}
+          >
+            ⧉
+          </button>
+        </div>
+        <div className="seed-row">
+          <input
+            className="seed-input"
+            placeholder="paste seed # or scene code"
+            value={loadText}
+            onChange={(e) => setLoadText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && load()}
+          />
+          <button onClick={load}>load</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>City parameters</h2>
+        <Slider
+          label="buildings"
+          value={c.gridSize}
+          min={2}
+          max={9}
+          step={1}
+          onChange={(v) => setP({ gridSize: v })}
+        />
+        <Slider
+          label="height peak"
+          value={c.heightPeak}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ heightPeak: v })}
+        />
+        <Slider
+          label="windows"
+          value={c.windowDensity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ windowDensity: v })}
+        />
+        <Slider
+          label="grid faces"
+          value={c.gridDensity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ gridDensity: v })}
+        />
+        <Slider
+          label="guidelines"
+          value={c.guidelineDensity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ guidelineDensity: v })}
+        />
+        <Slider
+          label="half-boxes"
+          value={c.partialBox}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ partialBox: v })}
+        />
+        <Slider
+          label="looseness"
+          value={c.looseness}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ looseness: v })}
+        />
+        <button className="reset" onClick={() => setCityParams(DEFAULT_CITY)}>
+          reset city defaults
+        </button>
+      </section>
+    </>
   );
 }
 
@@ -52,6 +197,8 @@ export function ControlPanel({
   setScene,
   showGuides,
   setShowGuides,
+  cityParams,
+  setCityParams,
   onReset,
 }: Props) {
   const p = projection;
@@ -66,7 +213,7 @@ export function ControlPanel({
       <section>
         <h2>Scene</h2>
         <div className="seg">
-          {["building", "house"].map((s) => (
+          {["building", "house", "city"].map((s) => (
             <button
               key={s}
               className={scene === s ? "on" : ""}
@@ -77,6 +224,10 @@ export function ControlPanel({
           ))}
         </div>
       </section>
+
+      {scene === "city" && (
+        <CitySection cityParams={cityParams} setCityParams={setCityParams} />
+      )}
 
       <section>
         <h2>Brush</h2>

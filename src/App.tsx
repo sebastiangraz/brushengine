@@ -20,10 +20,10 @@ const DEFAULT_PROJECTION: ProjectionParams = {
 const CITY_PROJECTION: ProjectionParams = {
   vpX: { x: 2.2, y: -1 },
   vpZ: { x: -2.2, y: -1 },
-  origin: { x: 0, y: -0.86 },
-  perspective: 0.24,
-  verticalScale: 0.52,
-  zoom: 0.5,
+  origin: { x: 0.5, y: -1 },
+  perspective: 0.75,
+  verticalScale: 1.5,
+  zoom: 0.3,
 };
 
 const SCENE_PROJECTION: Record<string, ProjectionParams> = {

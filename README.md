@@ -101,9 +101,13 @@ grid-face density, grid variability (per-face roll that spreads façade grids
 symmetrically from very dense to very sparse / nearly gone — 0 means every face
 matches), grid gaps (per-line intermittence that drops grid lines for partial /
 broken grids), guideline density, half-box ratio, size variation (footprint
-width/depth spread — also affects the half-defined boxes), path wobble
-(hand-drawn waviness on every stroke), and guideline length (overshoot length of
-the construction guidelines).
+width/depth spread — also affects the half-defined boxes), L-shapes (fraction of
+buildings drawn as a tall tower + lower "foot" wing — built as a single L-solid
+with no interior seam, so the side reads as one continuous face; the seed rolls a
+vertical flip for top-/bottom-heavy massing and a 4-way yaw for the foot
+direction), path
+wobble (hand-drawn waviness on every stroke), and guideline length (overshoot
+length of the construction guidelines).
 
 Switching to the city scene also applies a worm's-eye default camera
 (`CITY_PROJECTION`).

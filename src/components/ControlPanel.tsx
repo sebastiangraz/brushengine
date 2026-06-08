@@ -205,6 +205,14 @@ function CitySection({
           onChange={(v) => setP({ footprintVar: v })}
         />
         <Slider
+          label="L-shapes"
+          value={c.lShapeRatio}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ lShapeRatio: v })}
+        />
+        <Slider
           label="path wobble"
           value={c.wobble}
           min={0}

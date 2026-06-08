@@ -49,6 +49,13 @@ export interface CityParams {
   wobble: number;
   /** 0..1 — length of the left-in guideline / construction overshoots. */
   guidelineLength: number;
+  /**
+   * 0..1 — fraction of buildings that are L-shaped (a tall tower with a lower
+   * "foot" wing). The seed rolls a vertical flip per building (foot at the bottom
+   * = bottom-heavy, or floating near the top = top-heavy overhang) and a 4-way
+   * yaw that points the foot toward the camera / left / right / away.
+   */
+  lShapeRatio: number;
 }
 
 export const DEFAULT_CITY: CityParams = {
@@ -65,6 +72,7 @@ export const DEFAULT_CITY: CityParams = {
   footprintVar: 1,
   wobble: 0.2,
   guidelineLength: 0.4,
+  lShapeRatio: 0.4,
 };
 
 const ORDER: (keyof CityParams)[] = [
@@ -81,6 +89,7 @@ const ORDER: (keyof CityParams)[] = [
   "gridVar",
   "gridGaps",
   "guidelineLength",
+  "lShapeRatio",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -236,6 +245,146 @@ export function cityScene(p: CityParams): StrokeData[] {
   const Z: Vec3 = [0, 0, 1];
   const Y: Vec3 = [0, 1, 0];
 
+  // Draw a single box (wireframe edges + façade grids + windows). Reused for the
+  // regular towers and for each part of an L-shaped building. by0/by1 let the box
+  // float vertically (e.g. the overhanging foot of a top-heavy L).
+  const drawBox = (
+    bx0: number,
+    bx1: number,
+    bz0: number,
+    bz1: number,
+    by0: number,
+    by1: number,
+    env: number,
+    primary: string,
+  ) => {
+    const bw = bx1 - bx0;
+    const bd = bz1 - bz0;
+    const vLen = by1 - by0;
+    const ew = 2.8 + env * 2.2;
+    const ec = () => (chance(0.62) ? primary : pick());
+
+    // Verticals (near edge solid; others may be omitted / partial).
+    seg([bx0, by0, bz0], [bx0, by1, bz0], ec(), ew, 0, 1, 7);
+    edge([bx0, by0, bz1], [bx0, by1, bz1], ec(), ew);
+    edge([bx1, by0, bz0], [bx1, by1, bz0], ec(), ew);
+    if (chance(0.4 * (1 - p.partialBox)))
+      edge([bx1, by0, bz1], [bx1, by1, bz1], ec(), ew * 0.8);
+
+    // Roof edges.
+    edge([bx0, by1, bz0], [bx0, by1, bz1], ec(), ew);
+    edge([bx0, by1, bz0], [bx1, by1, bz0], ec(), ew);
+    edge([bx0, by1, bz1], [bx1, by1, bz1], ec(), ew * 0.8);
+    edge([bx1, by1, bz0], [bx1, by1, bz1], ec(), ew * 0.8);
+    // Ground / underside edges.
+    edge([bx0, by0, bz0], [bx0, by0, bz1], ec(), ew * 0.8);
+    edge([bx0, by0, bz0], [bx1, by0, bz0], ec(), ew * 0.8);
+
+    // Façade grids (left + front faces).
+    if (chance(p.gridDensity)) faceGrid([bx0, by0, bz0], Z, Y, bd, vLen);
+    if (chance(p.gridDensity)) faceGrid([bx0, by0, bz0], X, Y, bw, vLen);
+
+    // Windows.
+    const wp = 1 + Math.round(p.windowDensity * 2);
+    for (let k = 0; k < wp; k++) {
+      if (chance(p.windowDensity)) windowPatch([bx0, by0, bz0], X, Y, bw, vLen);
+      if (chance(p.windowDensity)) windowPatch([bx0, by0, bz0], Z, Y, bd, vLen);
+    }
+  };
+
+  // Draw an L-shaped building as a SINGLE solid (no interior seam between the
+  // tower and the foot) — like a subtractive boolean, so the L's side reads as
+  // one continuous face. The L cross-section is extruded along the depth axis.
+  // `yaw` (0..3) points the foot toward the camera / left / right / away, and
+  // `topHeavy` flips it vertically (foot floating at the top vs on the ground).
+  const drawLPrism = (
+    bx0: number,
+    bx1: number,
+    bz0: number,
+    bz1: number,
+    h: number,
+    topHeavy: boolean,
+    yaw: number,
+    towerFrac: number,
+    footHfrac: number,
+    env: number,
+    primary: string,
+  ) => {
+    const bw = bx1 - bx0;
+    const bd = bz1 - bz0;
+    const ew = 2.8 + env * 2.2;
+    const ec = () => (chance(0.62) ? primary : pick());
+    const footAxisX = yaw === 0 || yaw === 2;
+    const La = footAxisX ? bw : bd; // length along the foot axis
+    const Lb = footAxisX ? bd : bw; // depth
+    const tw = La * towerFrac; // tower width along the foot axis
+    const fh = h * footHfrac; // foot height
+
+    // foot-axis coord a + depth coord b -> world X,Z (height handled by wy()).
+    const toXZ = (a: number, b: number): [number, number] => {
+      if (yaw === 0) return [bx0 + a, bz0 + b];
+      if (yaw === 2) return [bx1 - a, bz0 + b];
+      if (yaw === 1) return [bx0 + b, bz0 + a];
+      return [bx0 + b, bz1 - a];
+    };
+    const wy = (y: number) => (topHeavy ? h - y : y);
+    const P = (a: number, b: number, y: number): Vec3 => {
+      const [wx, wz] = toXZ(a, b);
+      return [wx, wy(y), wz];
+    };
+
+    // 6-vertex L outline in (foot-axis a, height y) — no interior edges.
+    const V: [number, number][] = [
+      [0, 0],
+      [La, 0],
+      [La, fh],
+      [tw, fh],
+      [tw, h],
+      [0, h],
+    ];
+    const loop: [number, number][] = [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 0],
+    ];
+
+    // Near tower vertical solid; the rest of the outline + back + depth edges are
+    // sketchy / omittable (respecting partialBox).
+    seg(P(0, 0, 0), P(0, 0, h), ec(), ew, 0, 1, 7);
+    for (const [i, j] of loop) {
+      if (!(i === 5 && j === 0))
+        edge(P(V[i][0], 0, V[i][1]), P(V[j][0], 0, V[j][1]), ec(), ew);
+      edge(P(V[i][0], Lb, V[i][1]), P(V[j][0], Lb, V[j][1]), ec(), ew * 0.85);
+    }
+    for (let k = 0; k < 6; k++) {
+      edge(P(V[k][0], 0, V[k][1]), P(V[k][0], Lb, V[k][1]), ec(), ew * 0.85);
+    }
+
+    // Windows / grids on the rectangular sub-faces (tower + foot).
+    const footDir: Vec3 = footAxisX
+      ? [yaw === 0 ? 1 : -1, 0, 0]
+      : [0, 0, yaw === 1 ? 1 : -1];
+    const depthDir: Vec3 = footAxisX ? [0, 0, 1] : [1, 0, 0];
+    const [tX, tZ] = toXZ(0, 0);
+    const towerO: Vec3 = [tX, 0, tZ];
+    const [fX, fZ] = toXZ(tw, 0);
+    const footO: Vec3 = [fX, topHeavy ? h - fh : 0, fZ];
+
+    if (chance(p.gridDensity)) faceGrid(towerO, footDir, Y, tw, h);
+    if (chance(p.gridDensity)) faceGrid(towerO, depthDir, Y, Lb, h);
+    if (chance(p.gridDensity)) faceGrid(footO, footDir, Y, La - tw, fh);
+
+    const wp = 1 + Math.round(p.windowDensity * 2);
+    for (let k = 0; k < wp; k++) {
+      if (chance(p.windowDensity)) windowPatch(towerO, footDir, Y, tw, h);
+      if (chance(p.windowDensity)) windowPatch(towerO, depthDir, Y, Lb, h);
+      if (chance(p.windowDensity)) windowPatch(footO, footDir, Y, La - tw, fh);
+    }
+  };
+
   for (let i = 0; i < N; i++) {
     for (let j = 0; j < N; j++) {
       const di = i - center;
@@ -262,57 +411,50 @@ export function cityScene(p: CityParams): StrokeData[] {
       const h = 0.8 + envTerm * (minF + (1 - minF) * rnd());
 
       const primary = pick();
-      const ec = () => (chance(0.62) ? primary : pick());
-      const ew = 2.8 + env * 2.2;
 
-      // Near vertical edge — the key edge, almost always drawn.
-      seg([x0, 0, z0], [x0, h, z0], ec(), ew, 0, 1, 7);
-      // Outer verticals + far vertical (often left undefined).
-      edge([x0, 0, z1], [x0, h, z1], ec(), ew);
-      edge([x1, 0, z0], [x1, h, z0], ec(), ew);
-      if (chance(0.4 * (1 - p.partialBox)))
-        edge([x1, 0, z1], [x1, h, z1], ec(), ew * 0.8);
-
-      // Roof edges.
-      edge([x0, h, z0], [x0, h, z1], ec(), ew);
-      edge([x0, h, z0], [x1, h, z0], ec(), ew);
-      edge([x0, h, z1], [x1, h, z1], ec(), ew * 0.8);
-      edge([x1, h, z0], [x1, h, z1], ec(), ew * 0.8);
-      // Ground contact.
-      edge([x0, 0, z0], [x0, 0, z1], ec(), ew * 0.8);
-      edge([x0, 0, z0], [x1, 0, z0], ec(), ew * 0.8);
-
-      // Façade grids.
-      if (chance(p.gridDensity)) faceGrid([x0, 0, z0], Z, Y, bd, h); // left face
-      if (chance(p.gridDensity)) faceGrid([x0, 0, z0], X, Y, bw, h); // front face
-
-      // Windows.
-      const wp = 1 + Math.round(p.windowDensity * 2);
-      for (let k = 0; k < wp; k++) {
-        if (chance(p.windowDensity)) windowPatch([x0, 0, z0], X, Y, bw, h);
-        if (chance(p.windowDensity)) windowPatch([x0, 0, z0], Z, Y, bd, h);
+      // tower footprint — equals the full lot unless this is an L-shaped building.
+      let tx0 = x0;
+      let tx1 = x1;
+      let tz0 = z0;
+      let tz1 = z1;
+      if (chance(p.lShapeRatio)) {
+        // Two seed rolls: a vertical flip (top- vs bottom-heavy) and a 4-way yaw
+        // for the foot direction. Drawn as one L-solid (no interior seam).
+        const topHeavy = chance(0.5);
+        const yaw = Math.floor(rng(0, 4));
+        const towerFrac = rng(0.4, 0.62);
+        const footHfrac = rng(0.28, 0.5);
+        drawLPrism(x0, x1, z0, z1, h, topHeavy, yaw, towerFrac, footHfrac, env, primary);
+        // Tower footprint, for the guideline / spire anchors below.
+        const tw = (yaw === 0 || yaw === 2 ? bw : bd) * towerFrac;
+        if (yaw === 0) tx1 = x0 + tw;
+        else if (yaw === 2) tx0 = x1 - tw;
+        else if (yaw === 1) tz1 = z0 + tw;
+        else tz0 = z1 - tw;
+      } else {
+        drawBox(x0, x1, z0, z1, 0, h, env, primary);
       }
 
-      // Per-building guidelines: extend the near edge up (spire) and roof out.
+      // Per-building guidelines: extend the tower's near edge up + roof out.
       if (chance(p.guidelineDensity)) {
         const over =
           (0.2 + p.guidelineLength * 2.5) * rng(0.4, 1.1) * (0.5 + env);
-        seg([x0, h, z0], [x0, h + over, z0], primary, 2, 0, 0.6, 4);
+        seg([tx0, h, tz0], [tx0, h + over, tz0], primary, 2, 0, 0.6, 4);
       }
       if (chance(p.guidelineDensity * 0.7)) {
         const over = (0.2 + p.guidelineLength * 2.2) * rng(0.4, 1);
-        seg([x1, h, z0], [x1 + over, h, z0], primary, 2, 0, 0.5, 4);
+        seg([tx1, h, tz0], [tx1 + over, h, tz0], primary, 2, 0, 0.5, 4);
       }
       if (chance(p.guidelineDensity * 0.7)) {
         const over = (0.2 + p.guidelineLength * 2.2) * rng(0.4, 1);
-        seg([x0, h, z1], [x0, h, z1 + over], primary, 2, 0, 0.5, 4);
+        seg([tx0, h, tz1], [tx0, h, tz1 + over], primary, 2, 0, 0.5, 4);
       }
 
       // Central spire/antenna for the very tallest towers — visual tension.
       if (env > 0.8 && chance(0.85)) {
         const col = pick();
-        const cx = (x0 + x1) / 2;
-        const cz = (z0 + z1) / 2;
+        const cx = (tx0 + tx1) / 2;
+        const cz = (tz0 + tz1) / 2;
         const sp = rng(1.1, 2.3) * (0.6 + p.heightPeak);
         seg([cx, h, cz], [cx, h + sp, cz], col, 2.2, 0, 0.9, 4);
         for (let t = 0; t < 4; t++) {

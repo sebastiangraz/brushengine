@@ -58,6 +58,21 @@ lines never converge (no third vanishing point). `hw` is the homogeneous depth
 term (≈1 near the origin, larger with distance) and drives the thickness knob:
 `width *= mix(1, 1/hw, thicknessFalloff)`.
 
+## Performance
+
+The generative city can emit a few thousand strokes. To keep it smooth:
+
+- **Batching** — strokes are grouped by brush and merged into one geometry per
+  group (colour / width / opacity baked into vertex attributes), so the scene
+  draws in ~3 calls instead of one per stroke.
+- **Dirty flag** — the render loop only does work when projection / params /
+  size actually change; between interactions it early-outs, so an idle scene
+  costs nothing.
+- **No per-frame sort** — multiply (ink-mix) blending is order-independent, so
+  strokes are never depth-sorted. With ink-mix *off* (plain alpha), overlap
+  order follows batch order rather than strict back-to-front; for the sketch
+  aesthetic that's not noticeable, and it keeps dragging at 60 fps.
+
 ## Layout
 
 ```
@@ -66,9 +81,9 @@ src/
     types.ts        projection params, stroke + style types
     projection.ts   CPU mirror of the GLSL projection (guides, sorting)
     shaders.ts      vertex (projection + ribbon expansion) + fragment shaders
-    Stroke.ts       polyline -> ribbon BufferGeometry
+    Stroke.ts       merge many strokes -> one batched ribbon geometry
     brushes.ts      load bundled SVG strokes as textures
-    BrushEngine.ts  renderer, per-stroke materials, render loop, depth sort
+    BrushEngine.ts  renderer, per-brush batched meshes, dirty-flagged render loop
   scenes/
     helpers.ts      subdivide + wobble a segment into a hand-drawn polyline
     box.ts          gridded building

@@ -1,33 +1,31 @@
 import * as THREE from "three";
 import { vertexShader, fragmentShader } from "./shaders";
-import { buildStrokeGeometry } from "./Stroke";
-import { meanDepth } from "./projection";
-import type {
-  GlobalStyle,
-  ProjectionParams,
-  StrokeData,
-  Vec3,
-} from "./types";
+import { buildMergedGeometry, type BatchItem } from "./Stroke";
+import type { GlobalStyle, ProjectionParams, StrokeData } from "./types";
 
-// Normalise any CSS colour string to straight sRGB floats. We write the colour
-// directly to the framebuffer from a RawShaderMaterial (no three colour mgmt),
-// so we need the literal sRGB components, not linearised ones.
+// Normalise any CSS colour string to straight sRGB floats, cached. We write the
+// colour directly to the framebuffer from a RawShaderMaterial (no three colour
+// management), so we need literal sRGB components, not linearised ones.
 const _probe = document.createElement("canvas");
 _probe.width = _probe.height = 1;
-const _pctx = _probe.getContext("2d")!;
+const _pctx = _probe.getContext("2d", { willReadFrequently: true })!;
+const _colorCache = new Map<string, [number, number, number]>();
 function parseColor(css: string): [number, number, number] {
+  const hit = _colorCache.get(css);
+  if (hit) return hit;
   _pctx.clearRect(0, 0, 1, 1);
   _pctx.fillStyle = "#000";
   _pctx.fillStyle = css;
   _pctx.fillRect(0, 0, 1, 1);
   const d = _pctx.getImageData(0, 0, 1, 1).data;
-  return [d[0] / 255, d[1] / 255, d[2] / 255];
+  const rgb: [number, number, number] = [d[0] / 255, d[1] / 255, d[2] / 255];
+  _colorCache.set(css, rgb);
+  return rgb;
 }
 
-interface StrokeEntry {
+interface Batch {
   mesh: THREE.Mesh;
   material: THREE.RawShaderMaterial;
-  points: Vec3[];
   brushIndex: number;
 }
 
@@ -35,7 +33,7 @@ export class BrushEngine {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.Camera(); // unused matrices; we set gl_Position directly
-  private entries: StrokeEntry[] = [];
+  private batches: Batch[] = [];
   private brushes: THREE.Texture[] = [];
 
   private params: ProjectionParams = {
@@ -55,6 +53,7 @@ export class BrushEngine {
   private width = 1;
   private height = 1;
   private raf = 0;
+  private dirty = true; // only do work / re-render when something changed
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -69,32 +68,40 @@ export class BrushEngine {
 
   setBrushes(textures: THREE.Texture[]) {
     this.brushes = textures;
-    // Re-point existing materials at the (possibly newly loaded) textures.
-    for (const e of this.entries) {
-      const b = e.material.uniforms.uBrush;
-      const idx = e.material.userData.brush as number;
-      if (this.brushes[idx]) b.value = this.brushes[idx];
-    }
+    this.dirty = true;
   }
 
   setStrokes(strokes: StrokeData[]) {
-    for (const e of this.entries) {
-      this.scene.remove(e.mesh);
-      e.mesh.geometry.dispose();
-      e.material.dispose();
+    for (const b of this.batches) {
+      this.scene.remove(b.mesh);
+      b.mesh.geometry.dispose();
+      b.material.dispose();
     }
-    this.entries = [];
+    this.batches = [];
 
+    // Group strokes by brush index, then merge each group into one geometry so
+    // the whole scene draws in a handful of calls instead of one per stroke.
+    const groups = new Map<number, BatchItem[]>();
     for (const s of strokes) {
-      const geo = buildStrokeGeometry(s.points);
-      const [r, g, b] = parseColor(s.style.color);
+      const bi = s.style.brush;
+      let arr = groups.get(bi);
+      if (!arr) groups.set(bi, (arr = []));
+      arr.push({
+        points: s.points,
+        color: parseColor(s.style.color),
+        widthPx: s.style.widthPx,
+        opacity: s.style.opacity,
+      });
+    }
+
+    for (const [brushIndex, items] of groups) {
+      const geo = buildMergedGeometry(items);
       const material = new THREE.RawShaderMaterial({
         vertexShader,
         fragmentShader,
         transparent: true,
         depthTest: false,
         depthWrite: false,
-        blending: THREE.NormalBlending,
         side: THREE.DoubleSide,
         uniforms: {
           uVpX: { value: new THREE.Vector2() },
@@ -105,26 +112,19 @@ export class BrushEngine {
           uZoom: { value: 1 },
           uFit: { value: new THREE.Vector2(1, 1) },
           uMinDim: { value: 1 },
-          uWidthPx: { value: s.style.widthPx },
           uThicknessFalloff: { value: 0 },
-          uBrush: { value: this.brushes[s.style.brush] ?? null },
-          uColor: { value: new THREE.Vector3(r, g, b) },
-          uOpacity: { value: s.style.opacity },
+          uBrush: { value: this.brushes[brushIndex] ?? null },
           uInkBlend: { value: 1 },
         },
       });
-      material.userData.brush = s.style.brush;
       const mesh = new THREE.Mesh(geo, material);
       mesh.frustumCulled = false;
       this.scene.add(mesh);
-      this.entries.push({
-        mesh,
-        material,
-        points: s.points,
-        brushIndex: s.style.brush,
-      });
+      this.batches.push({ mesh, material, brushIndex });
     }
+
     this.applyBlendMode();
+    this.dirty = true;
   }
 
   /**
@@ -136,8 +136,8 @@ export class BrushEngine {
   private applyBlendMode() {
     const ink = this.global.inkBlend;
     this.renderer.setClearColor(0xffffff, ink ? 1 : 0);
-    for (const e of this.entries) {
-      const m = e.material;
+    for (const b of this.batches) {
+      const m = b.material;
       m.uniforms.uInkBlend.value = ink ? 1 : 0;
       if (ink) {
         m.blending = THREE.CustomBlending;
@@ -155,11 +155,13 @@ export class BrushEngine {
 
   setProjection(params: ProjectionParams) {
     this.params = params;
+    this.dirty = true;
   }
 
   setGlobalStyle(style: GlobalStyle) {
     this.global = style;
     this.applyBlendMode();
+    this.dirty = true;
   }
 
   getProjection(): ProjectionParams {
@@ -170,17 +172,21 @@ export class BrushEngine {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.renderer.setSize(this.width, this.height, false);
+    this.dirty = true;
   }
 
   private renderOnce = () => {
+    if (!this.dirty) return; // scene is static between interactions
+    this.dirty = false;
+
     const p = this.params;
-    // Fit the square authoring frame into the canvas (preserve model aspect).
     const minDim = Math.min(this.width, this.height);
     const fitX = minDim / this.width;
     const fitY = minDim / this.height;
+    const override = this.global.brushOverride;
 
-    for (const e of this.entries) {
-      const u = e.material.uniforms;
+    for (const b of this.batches) {
+      const u = b.material.uniforms;
       u.uVpX.value.set(p.vpX.x, p.vpX.y);
       u.uVpZ.value.set(p.vpZ.x, p.vpZ.y);
       u.uOrigin.value.set(p.origin.x, p.origin.y);
@@ -190,16 +196,15 @@ export class BrushEngine {
       u.uFit.value.set(fitX, fitY);
       u.uMinDim.value = minDim;
       u.uThicknessFalloff.value = this.global.thicknessFalloff;
-      const bi = this.global.brushOverride ?? e.brushIndex;
+      const bi = override ?? b.brushIndex;
       if (this.brushes[bi]) u.uBrush.value = this.brushes[bi];
-      // Painter's order: farther (larger w) draws first.
-      e.mesh.renderOrder = -meanDepth(e.points, p);
     }
 
     this.renderer.render(this.scene, this.camera);
   };
 
   render() {
+    this.dirty = true;
     this.renderOnce();
   }
 
@@ -218,11 +223,11 @@ export class BrushEngine {
 
   dispose() {
     this.stop();
-    for (const e of this.entries) {
-      e.mesh.geometry.dispose();
-      e.material.dispose();
+    for (const b of this.batches) {
+      b.mesh.geometry.dispose();
+      b.material.dispose();
     }
-    this.entries = [];
+    this.batches = [];
     this.renderer.dispose();
   }
 }

@@ -468,7 +468,7 @@ export function cityScene(p: CityParams): StrokeData[] {
         const cx = (tx0 + tx1) / 2;
         const cz = (tz0 + tz1) / 2;
         const sp = rng(1.1, 2.3) * (0.6 + p.heightPeak);
-        seg([cx, h, cz], [cx, h + sp, cz], col, 2.2, 0, 0.9, 4);
+        seg([cx, h, cz], [cx, h + sp, cz], col, 3, 0, 0.9, 4);
         for (let t = 0; t < 4; t++) {
           const yy = h + sp * (0.4 + t * 0.16);
           const r = (0.05 * (4 - t)) / 4 + 0.02;

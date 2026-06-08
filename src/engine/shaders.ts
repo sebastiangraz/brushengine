@@ -1,12 +1,15 @@
 export const vertexShader = /* glsl */ `
 precision highp float;
 
-// --- ribbon attributes ---
+// --- ribbon attributes (per vertex; baked per-stroke at merge time) ---
 attribute vec3 aCenter;   // this centre-line point
 attribute vec3 aPrev;     // previous centre-line point
 attribute vec3 aNext;     // next centre-line point
 attribute float aSide;    // -1 or +1 (which edge of the ribbon)
 attribute vec2 aUv;       // u along length, v across width
+attribute vec3 aColor;    // stroke colour (straight sRGB)
+attribute float aWidthPx; // stroke width in CSS px (at depth w=1)
+attribute float aOpacity; // stroke opacity
 
 // --- 2-point projection params ---
 uniform vec2  uVpX;          // vanishing point of world +X (NDC)
@@ -22,10 +25,11 @@ uniform float uZoom;
 // model's aspect ratio (the square is centred; extra space becomes margin).
 uniform vec2  uFit;             // (minDim/width, minDim/height)
 uniform float uMinDim;          // min(width, height) in CSS px
-uniform float uWidthPx;         // stroke width in CSS px (at depth w=1)
 uniform float uThicknessFalloff;// 0 = constant px width, 1 = perspective
 
 varying vec2 vUv;
+varying vec3 vColor;
+varying float vOpacity;
 
 // Custom 2-point projection. Returns vec3(q.x, q.y, w) where q is the position
 // in the square authoring frame and w is the homogeneous depth term (~1 near the
@@ -55,7 +59,7 @@ void main() {
   vec2 normal = vec2(-dir.y, dir.x);
 
   // Half width in square-frame units: 2 units span minDim px, so px/minDim.
-  float halfWidth = uWidthPx / uMinDim;
+  float halfWidth = aWidthPx / uMinDim;
 
   // Thickness vs distance: w==1 near origin -> factor 1; far -> 1/w (< 1).
   float depthScale = mix(1.0, clamp(1.0 / c.z, 0.0, 8.0), uThicknessFalloff);
@@ -63,6 +67,8 @@ void main() {
   vec2 q = qc + normal * halfWidth * depthScale * aSide;
 
   vUv = aUv;
+  vColor = aColor;
+  vOpacity = aOpacity;
   gl_Position = vec4(q * uFit, 0.0, 1.0);
 }
 `;
@@ -71,25 +77,25 @@ export const fragmentShader = /* glsl */ `
 precision highp float;
 
 uniform sampler2D uBrush;
-uniform vec3 uColor;
-uniform float uOpacity;
 uniform float uInkBlend;   // 1 = CMYK multiply mode, 0 = normal alpha
 
 varying vec2 vUv;
+varying vec3 vColor;
+varying float vOpacity;
 
 void main() {
   vec4 tex = texture2D(uBrush, vUv);
   // Brush textures carry the ink shape in their alpha channel.
-  float a = tex.a * uOpacity;
+  float a = tex.a * vOpacity;
   if (a < 0.01) discard;
 
   if (uInkBlend > 0.5) {
     // Multiply blending against an opaque white canvas: output a per-channel
     // ink "transmission". No ink (a=0) -> white -> multiply is a no-op; full
-    // ink -> uColor. Overlaps multiply together and darken, even same colours.
-    gl_FragColor = vec4(mix(vec3(1.0), uColor, a), 1.0);
+    // ink -> vColor. Overlaps multiply together and darken, even same colours.
+    gl_FragColor = vec4(mix(vec3(1.0), vColor, a), 1.0);
   } else {
-    gl_FragColor = vec4(uColor, a);
+    gl_FragColor = vec4(vColor, a);
   }
 }
 `;

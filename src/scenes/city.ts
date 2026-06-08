@@ -30,9 +30,11 @@ export interface CityParams {
    */
   gridVar: number;
   /**
-   * 0..1 — grid intermittence. Higher randomly drops individual grid lines (like
-   * the window patches), leaving partial / broken grids across a face. 0 = solid,
-   * complete grids.
+   * 0..1 — grid chunking along the face height. 0 = grid fully saturates the face
+   * top-to-bottom. Rising toward 0.5 = a per-face chance (≈50% at 0.5) that the
+   * grid is a single chunk covering 20-60% of the face, rest blank. Above 0.5 adds
+   * (up to a 20% chance at 1) a "striped" face split into 2-4 equal, evenly spaced
+   * chunks.
    */
   gridGaps: number;
   /**
@@ -210,51 +212,66 @@ export function cityScene(p: CityParams): StrokeData[] {
     }
   };
 
-  // Full façade construction grid.
+  // Façade construction grid. gridGaps controls how the grid is CHUNKED along the
+  // face height (not per-line noise):
+  //   0   -> one chunk, fully saturated top-to-bottom.
+  //   ~g  -> per-face chance (e.g. 50% at 0.5) of a single chunk covering 20-60%
+  //          of the face, placed anywhere, rest blank.
+  //   >.5 -> additive chance (up to 20% at 1) of a "striped" face split into 2-4
+  //          equal, evenly spaced chunks.
   const faceGrid = (O: Vec3, u: Vec3, v: Vec3, uLen: number, vLen: number) => {
     const col = pick();
-    // Per-face density factor: a symmetric (log-space) multiplier around the base
-    // density, rolled independently per face. gridVar widens the spread in both
-    // directions, so faces range from much denser to very sparse / nearly gone;
-    // at gridVar 0 the factor is exactly 1 and every face matches.
+    // Per-face density factor (gridVar) — symmetric log-space multiplier.
     const densFactor = Math.exp((rnd() * 2 - 1) * p.gridVar * 1.6);
-    // Grid cell aspect ratio: with chance gridRatio this face gets stretched
-    // cells (up to 16:1 / 1:16, random portrait or landscape at gridRatio 1);
-    // otherwise square. The factor is split between the axes so overall density
-    // is preserved — only the cell shape changes. gridRatio 0 = square as before.
+    // Per-face cell aspect ratio (gridRatio) — density-preserving axis split.
     let rs = 1;
     if (chance(p.gridRatio)) {
       const aspect = Math.pow(2, (rnd() * 2 - 1) * 4 * p.gridRatio); // log2 up to ±4
       rs = Math.sqrt(aspect);
     }
     const nu = Math.min(48, Math.max(1, Math.round((uLen / 0.18) * densFactor * rs)));
-    const nv = Math.min(48, Math.max(1, Math.round((vLen / 0.22) * densFactor / rs)));
-    // Per-line keep probability — gridGaps randomly drops lines for a partial,
-    // broken grid (like the intermittent window rows). 0 = every line drawn.
-    const keep = 1 - p.gridGaps * 0.85;
-    for (let i = 1; i < nu; i++) {
-      if (!chance(keep)) continue;
-      const uu = (uLen * i) / nu;
-      seg(
-        add(O, mul(u, uu)),
-        add(add(O, mul(u, uu)), mul(v, vLen)),
-        col,
-        rng(2, 3.2),
-        0,
-        0.85,
-      );
+    const nvFull = Math.min(48, Math.max(1, Math.round((vLen / 0.22) * densFactor / rs)));
+
+    // Decide the height chunking (bands as 0..1 fractions of the face height).
+    const g = p.gridGaps;
+    let bands: [number, number][];
+    let capped: boolean; // draw the band's top/bottom edges so the chunk reads as a panel
+    if (chance(Math.max(0, g - 0.5) * 0.4)) {
+      // Striped: 2-4 equal, evenly spaced chunks.
+      const K = 2 + Math.floor(rnd() * 3);
+      const pad = (1 - 0.62) / 2; // each stripe fills ~62% of its slot
+      bands = [];
+      for (let k = 0; k < K; k++) bands.push([(k + pad) / K, (k + 1 - pad) / K]);
+      capped = true;
+    } else if (chance(g)) {
+      // Single partial chunk covering 20-60% of the face, placed anywhere.
+      const frac = rng(0.2, 0.6);
+      const start = rng(0, 1 - frac);
+      bands = [[start, start + frac]];
+      capped = true;
+    } else {
+      bands = [[0, 1]]; // full, top-to-bottom
+      capped = false;
     }
-    for (let j = 1; j < nv; j++) {
-      if (!chance(keep)) continue;
-      const vv = (vLen * j) / nv;
-      seg(
-        add(O, mul(v, vv)),
-        add(add(O, mul(v, vv)), mul(u, uLen)),
-        col,
-        rng(2, 3.2),
-        0,
-        0.85,
-      );
+
+    const pt = (uu: number, yy: number): Vec3 =>
+      add(add(O, mul(u, uu)), mul(v, yy));
+
+    for (const [b0, b1] of bands) {
+      const yA = b0 * vLen;
+      const yB = b1 * vLen;
+      const bandH = yB - yA;
+      for (let i = 1; i < nu; i++) {
+        const uu = (uLen * i) / nu;
+        seg(pt(uu, yA), pt(uu, yB), col, rng(2, 3.2), 0, 0.85); // vertical spans chunk
+      }
+      const nvBand = Math.max(1, Math.round((nvFull * bandH) / vLen));
+      const j0 = capped ? 0 : 1;
+      const j1 = capped ? nvBand : nvBand - 1;
+      for (let j = j0; j <= j1; j++) {
+        const yy = yA + (bandH * j) / nvBand;
+        seg(pt(0, yy), pt(uLen, yy), col, rng(2, 3.2), 0, 0.85); // horizontal
+      }
     }
   };
 

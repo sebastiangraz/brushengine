@@ -114,8 +114,9 @@ client. Exclusive sliders: buildings (grid size), height peak, height variabilit
 (downward-only — adds more low-rises while preserving the peak), window density,
 grid-face density, grid variability (per-face roll that spreads façade grids
 symmetrically from very dense to very sparse / nearly gone — 0 means every face
-matches), grid gaps (per-line intermittence that drops grid lines for partial /
-broken grids), grid ratio (per-face chance to stretch grid cells to a non-square
+matches), grid gaps (chunks the grid along the
+face height — 0 saturates top-to-bottom, mid values give a single partial chunk,
+high values add a striped multi-chunk mode), grid ratio (per-face chance to stretch grid cells to a non-square
 aspect, up to 16:1 / 1:16 at full value), guideline density, half-box ratio, size
 variation (footprint
 width/depth spread — also affects the half-defined boxes), L-shapes (fraction of

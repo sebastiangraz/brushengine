@@ -35,6 +35,12 @@ export interface CityParams {
    * complete grids.
    */
   gridGaps: number;
+  /**
+   * 0..1 — grid cell aspect-ratio variability. A per-face chance (rises with the
+   * value) to stretch a face's grid cells into a non-square ratio — up to 16:1 or
+   * 1:16 (portrait or landscape) at 1. 0 = square cells everywhere (as before).
+   */
+  gridRatio: number;
   /** 0..1 — how many left-in guideline / construction strokes. */
   guidelineDensity: number;
   /** 0..1 — how often box edges are omitted or only partially drawn. */
@@ -67,6 +73,7 @@ export const DEFAULT_CITY: CityParams = {
   gridDensity: 0.06,
   gridVar: 0.86,
   gridGaps: 0.35,
+  gridRatio: 0.3,
   guidelineDensity: 0.52,
   partialBox: 0.62,
   footprintVar: 1,
@@ -90,6 +97,7 @@ const ORDER: (keyof CityParams)[] = [
   "gridGaps",
   "guidelineLength",
   "lShapeRatio",
+  "gridRatio",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -210,8 +218,17 @@ export function cityScene(p: CityParams): StrokeData[] {
     // directions, so faces range from much denser to very sparse / nearly gone;
     // at gridVar 0 the factor is exactly 1 and every face matches.
     const densFactor = Math.exp((rnd() * 2 - 1) * p.gridVar * 1.6);
-    const nu = Math.max(1, Math.round((uLen / 0.18) * densFactor));
-    const nv = Math.max(1, Math.round((vLen / 0.22) * densFactor));
+    // Grid cell aspect ratio: with chance gridRatio this face gets stretched
+    // cells (up to 16:1 / 1:16, random portrait or landscape at gridRatio 1);
+    // otherwise square. The factor is split between the axes so overall density
+    // is preserved — only the cell shape changes. gridRatio 0 = square as before.
+    let rs = 1;
+    if (chance(p.gridRatio)) {
+      const aspect = Math.pow(2, (rnd() * 2 - 1) * 4 * p.gridRatio); // log2 up to ±4
+      rs = Math.sqrt(aspect);
+    }
+    const nu = Math.min(48, Math.max(1, Math.round((uLen / 0.18) * densFactor * rs)));
+    const nv = Math.min(48, Math.max(1, Math.round((vLen / 0.22) * densFactor / rs)));
     // Per-line keep probability — gridGaps randomly drops lines for a partial,
     // broken grid (like the intermittent window rows). 0 = every line drawn.
     const keep = 1 - p.gridGaps * 0.85;

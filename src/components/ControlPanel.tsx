@@ -183,6 +183,14 @@ function CitySection({
           onChange={(v) => setP({ gridGaps: v })}
         />
         <Slider
+          label="grid ratio"
+          value={c.gridRatio}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ gridRatio: v })}
+        />
+        <Slider
           label="guidelines"
           value={c.guidelineDensity}
           min={0}

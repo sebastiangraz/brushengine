@@ -71,6 +71,19 @@
 }
 .ctl-row input[type="range"] {
   width: 100%;
+  appearance: none;
+  background: hwb(var(--ink) / 0.08);
+  /* border-radius: 4px; */
+  /* height: 2px; */
+  outline: none;
+  cursor: pointer;
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 7px;
+    height: 16px;
+    background: hwb(var(--active));
+    /* border-radius: 50%; */
+  }
 }
 .ctl-check {
   display: flex;

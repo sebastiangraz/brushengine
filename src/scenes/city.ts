@@ -38,9 +38,9 @@ export interface CityParams {
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 5,
+  seed: 523403759,
   gridSize: 5,
-  heightPeak: 0.7,
+  heightPeak: 1,
   heightVar: 1,
   windowDensity: 0.16,
   gridDensity: 0.41,

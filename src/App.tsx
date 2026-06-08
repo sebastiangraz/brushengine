@@ -18,12 +18,12 @@ const DEFAULT_PROJECTION: ProjectionParams = {
 
 // Worm's-eye view that suits a clustered skyline rising from a ground line.
 const CITY_PROJECTION: ProjectionParams = {
-  vpX: { x: 2.2, y: -0.04 },
-  vpZ: { x: -2.2, y: -0.04 },
+  vpX: { x: 2.2, y: -1 },
+  vpZ: { x: -2.2, y: -1 },
   origin: { x: 0, y: -0.86 },
   perspective: 0.24,
-  verticalScale: 0.38,
-  zoom: 1.05,
+  verticalScale: 0.52,
+  zoom: 0.5,
 };
 
 const SCENE_PROJECTION: Record<string, ProjectionParams> = {

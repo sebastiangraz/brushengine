@@ -46,7 +46,11 @@ export class BrushEngine {
     verticalScale: 0.9,
     zoom: 1,
   };
-  private global: GlobalStyle = { thicknessFalloff: 0, brushOverride: null };
+  private global: GlobalStyle = {
+    thicknessFalloff: 0,
+    brushOverride: null,
+    inkBlend: true,
+  };
 
   private width = 1;
   private height = 1;
@@ -106,6 +110,7 @@ export class BrushEngine {
           uBrush: { value: this.brushes[s.style.brush] ?? null },
           uColor: { value: new THREE.Vector3(r, g, b) },
           uOpacity: { value: s.style.opacity },
+          uInkBlend: { value: 1 },
         },
       });
       material.userData.brush = s.style.brush;
@@ -119,6 +124,33 @@ export class BrushEngine {
         brushIndex: s.style.brush,
       });
     }
+    this.applyBlendMode();
+  }
+
+  /**
+   * Configure blending for the current ink-mix setting.
+   * - ink mix on: opaque white canvas + multiply blending (dst * src), so
+   *   overlapping ink darkens. Order-independent, so no sorting needed.
+   * - off: transparent canvas + ordinary alpha ("over") blending.
+   */
+  private applyBlendMode() {
+    const ink = this.global.inkBlend;
+    this.renderer.setClearColor(0xffffff, ink ? 1 : 0);
+    for (const e of this.entries) {
+      const m = e.material;
+      m.uniforms.uInkBlend.value = ink ? 1 : 0;
+      if (ink) {
+        m.blending = THREE.CustomBlending;
+        m.blendEquation = THREE.AddEquation;
+        m.blendSrc = THREE.ZeroFactor;
+        m.blendDst = THREE.SrcColorFactor;
+        m.blendEquationAlpha = THREE.AddEquation;
+        m.blendSrcAlpha = THREE.ZeroFactor;
+        m.blendDstAlpha = THREE.OneFactor; // keep the canvas opaque
+      } else {
+        m.blending = THREE.NormalBlending;
+      }
+    }
   }
 
   setProjection(params: ProjectionParams) {
@@ -127,6 +159,7 @@ export class BrushEngine {
 
   setGlobalStyle(style: GlobalStyle) {
     this.global = style;
+    this.applyBlendMode();
   }
 
   getProjection(): ProjectionParams {

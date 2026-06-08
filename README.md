@@ -25,6 +25,12 @@ npm run build    # type-check + production build
 - Brush textures are bundled SVGs (`public/brushes/`); the ink lives in the
   alpha channel and is recoloured per stroke. Strokes pick a brush per stroke,
   with a global override in the UI.
+- **CMYK ink mix** (toggle, on by default): overlapping strokes *multiply* like
+  real ink, so crossings darken — even two strokes of the same colour. This uses
+  GPU multiply blending against an opaque white canvas, where each fragment emits
+  `mix(white, inkColor, coverage)` (no ink → white → multiply is a no-op).
+  Multiply is order-independent, so no per-stroke sorting is needed in this mode.
+  Turn it off for ordinary alpha blending over a transparent canvas.
 
 ## How the 2-point projection works
 

@@ -101,6 +101,24 @@ export function ControlPanel({
       </section>
 
       <section>
+        <h2>Blending</h2>
+        <label className="ctl-check">
+          <input
+            type="checkbox"
+            checked={globalStyle.inkBlend}
+            onChange={(e) =>
+              setGlobalStyle({ ...globalStyle, inkBlend: e.target.checked })
+            }
+          />
+          CMYK ink mix (darken overlaps)
+        </label>
+        <p className="hint">
+          Overlapping strokes multiply like real ink — even two strokes of the
+          same colour deepen where they cross.
+        </p>
+      </section>
+
+      <section>
         <h2>Thickness</h2>
         <Slider
           label="dist. falloff"

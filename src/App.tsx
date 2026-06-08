@@ -23,6 +23,7 @@ export default function App() {
   const [globalStyle, setGlobalStyle] = useState<GlobalStyle>({
     thicknessFalloff: 0,
     brushOverride: null,
+    inkBlend: true,
   });
   const [showGuides, setShowGuides] = useState(true);
 

@@ -66,4 +66,10 @@ export interface GlobalStyle {
    * stroke's own `style.brush`. null = use per-stroke brush.
    */
   brushOverride: number | null;
+  /**
+   * CMYK-style ink mixing: overlapping strokes multiply (darken) like real ink,
+   * so even two strokes of the same colour deepen where they cross. When false,
+   * strokes use ordinary alpha blending over a transparent canvas.
+   */
+  inkBlend: boolean;
 }

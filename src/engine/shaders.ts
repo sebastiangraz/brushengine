@@ -73,6 +73,7 @@ precision highp float;
 uniform sampler2D uBrush;
 uniform vec3 uColor;
 uniform float uOpacity;
+uniform float uInkBlend;   // 1 = CMYK multiply mode, 0 = normal alpha
 
 varying vec2 vUv;
 
@@ -81,6 +82,14 @@ void main() {
   // Brush textures carry the ink shape in their alpha channel.
   float a = tex.a * uOpacity;
   if (a < 0.01) discard;
-  gl_FragColor = vec4(uColor, a);
+
+  if (uInkBlend > 0.5) {
+    // Multiply blending against an opaque white canvas: output a per-channel
+    // ink "transmission". No ink (a=0) -> white -> multiply is a no-op; full
+    // ink -> uColor. Overlaps multiply together and darken, even same colours.
+    gl_FragColor = vec4(mix(vec3(1.0), uColor, a), 1.0);
+  } else {
+    gl_FragColor = vec4(uColor, a);
+  }
 }
 `;

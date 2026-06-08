@@ -95,8 +95,11 @@ Randomness comes from a seeded `mulberry32` PRNG — no `Math.random`/`Date` in
 the generator — so the same inputs always yield the same city. The panel exposes
 a numeric **seed** plus a base64 **scene code** (`encodeCity`/`decodeCity`) that
 captures seed + all params; copy it to reproduce the exact city on another
-client. Exclusive sliders: buildings (grid size), height peak, window density,
-grid-face density, guideline density, half-box ratio, and looseness.
+client. Exclusive sliders: buildings (grid size), height peak, height variability
+(downward-only — adds more low-rises while preserving the peak), window density,
+grid-face density, guideline density, half-box ratio, size variation
+(footprint width/depth spread — also affects the half-defined boxes), and
+looseness.
 
 Switching to the city scene also applies a worm's-eye default camera
 (`CITY_PROJECTION`).

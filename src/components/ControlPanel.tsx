@@ -141,6 +141,14 @@ function CitySection({
           onChange={(v) => setP({ heightPeak: v })}
         />
         <Slider
+          label="height var."
+          value={c.heightVar}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ heightVar: v })}
+        />
+        <Slider
           label="windows"
           value={c.windowDensity}
           min={0}
@@ -171,6 +179,14 @@ function CitySection({
           max={1}
           step={0.01}
           onChange={(v) => setP({ partialBox: v })}
+        />
+        <Slider
+          label="size variation"
+          value={c.footprintVar}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setP({ footprintVar: v })}
         />
         <Slider
           label="looseness"

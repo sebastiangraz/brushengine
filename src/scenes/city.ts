@@ -13,6 +13,12 @@ export interface CityParams {
   gridSize: number;
   /** 0..1 — how much taller the centre towers grow (visual tension). */
   heightPeak: number;
+  /**
+   * 0..1 — height variability. Higher pulls more buildings down toward shorter
+   * heights (downward-only), so the skyline gets busier with low-rises while the
+   * peak ceiling set by `heightPeak` is preserved (the tallest towers stay tall).
+   */
+  heightVar: number;
   /** 0..1 — how often façades get window patches. */
   windowDensity: number;
   /** 0..1 — how often façades get a full construction grid. */
@@ -21,18 +27,26 @@ export interface CityParams {
   guidelineDensity: number;
   /** 0..1 — how often box edges are omitted or only partially drawn. */
   partialBox: number;
+  /**
+   * 0..1 — variability of each building's footprint width & depth. 0 = uniform
+   * blocks; higher = a more organic mix of slim and broad masses (also applies
+   * to the half-defined boxes, since they share the footprint).
+   */
+  footprintVar: number;
   /** 0..1 — hand-drawn looseness: wobble + guideline overshoot. */
   looseness: number;
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 1337,
-  gridSize: 6,
-  heightPeak: 0.72,
-  windowDensity: 0.68,
-  gridDensity: 0.5,
-  guidelineDensity: 0.5,
-  partialBox: 0.45,
+  seed: 5,
+  gridSize: 5,
+  heightPeak: 0.7,
+  heightVar: 1,
+  windowDensity: 0.16,
+  gridDensity: 0.41,
+  guidelineDensity: 1,
+  partialBox: 1,
+  footprintVar: 1,
   looseness: 0.5,
 };
 
@@ -44,7 +58,9 @@ const ORDER: (keyof CityParams)[] = [
   "gridDensity",
   "guidelineDensity",
   "partialBox",
+  "footprintVar",
   "looseness",
+  "heightVar",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -104,7 +120,7 @@ export function cityScene(p: CityParams): StrokeData[] {
     color: string,
     widthPx: number,
     brush = 0,
-    opacity = 1
+    opacity = 1,
   ) => strokes.push({ points: pts, style: { color, widthPx, brush, opacity } });
   const seg = (
     a: Vec3,
@@ -113,7 +129,7 @@ export function cityScene(p: CityParams): StrokeData[] {
     w: number,
     brush = 0,
     op = 1,
-    divs = 6
+    divs = 6,
   ) => push(line(a, b, divs, wob, s++), color, w, brush, op);
 
   // An edge that may be omitted or only partially drawn (half-defined boxes).
@@ -135,7 +151,13 @@ export function cityScene(p: CityParams): StrokeData[] {
 
   // Window patch: stacked short horizontal brush ticks on a face.
   // O = face origin, u = width direction, v = up; uLen/vLen the extents.
-  const windowPatch = (O: Vec3, u: Vec3, v: Vec3, uLen: number, vLen: number) => {
+  const windowPatch = (
+    O: Vec3,
+    u: Vec3,
+    v: Vec3,
+    uLen: number,
+    vLen: number,
+  ) => {
     const col = chance(0.7) ? warm() : PALETTE.teal;
     const u0 = rng(0.04, 0.2) * uLen;
     const w = rng(0.45, 0.85) * uLen;
@@ -158,11 +180,25 @@ export function cityScene(p: CityParams): StrokeData[] {
     const nv = Math.max(2, Math.round(vLen / 0.22));
     for (let i = 1; i < nu; i++) {
       const uu = (uLen * i) / nu;
-      seg(add(O, mul(u, uu)), add(add(O, mul(u, uu)), mul(v, vLen)), col, 1.6, 0, 0.85);
+      seg(
+        add(O, mul(u, uu)),
+        add(add(O, mul(u, uu)), mul(v, vLen)),
+        col,
+        1.6,
+        0,
+        0.85,
+      );
     }
     for (let j = 1; j < nv; j++) {
       const vv = (vLen * j) / nv;
-      seg(add(O, mul(v, vv)), add(add(O, mul(v, vv)), mul(u, uLen)), col, 1.6, 0, 0.85);
+      seg(
+        add(O, mul(v, vv)),
+        add(add(O, mul(v, vv)), mul(u, uLen)),
+        col,
+        1.6,
+        0,
+        0.85,
+      );
     }
   };
 
@@ -178,13 +214,22 @@ export function cityScene(p: CityParams): StrokeData[] {
       if (!chance(0.22 + 0.78 * env)) continue; // occupancy biased to centre
 
       const gap = cell * 0.06;
-      const bw = cell * rng(0.62, 0.98);
-      const bd = cell * rng(0.62, 0.98);
+      // Footprint width/depth vary independently; the spread is the slider.
+      const spread = p.footprintVar * 0.5;
+      const frac = () =>
+        Math.max(0.28, Math.min(1.3, 0.78 + (rnd() * 2 - 1) * spread));
+      const bw = cell * frac();
+      const bd = cell * frac();
       const x0 = i * cell + gap + rng(0, cell * 0.06);
       const z0 = j * cell + gap + rng(0, cell * 0.06);
       const x1 = x0 + bw;
       const z1 = z0 + bd;
-      const h = 0.8 + (0.4 + p.heightPeak * 4.6 * env) * rng(0.7, 1.3);
+      // Envelope sets the height ceiling (peak); variability only pulls down,
+      // and is tapered near the centre so the tallest peak towers stay tall.
+      const envTerm = 0.4 + p.heightPeak * 4.6 * env;
+      const varAmt = p.heightVar * (1 - env * 0.55);
+      const minF = 1 - varAmt * 0.85;
+      const h = 0.8 + envTerm * (minF + (1 - minF) * rnd());
 
       const primary = pick();
       const ec = () => (chance(0.62) ? primary : pick());
@@ -195,7 +240,8 @@ export function cityScene(p: CityParams): StrokeData[] {
       // Outer verticals + far vertical (often left undefined).
       edge([x0, 0, z1], [x0, h, z1], ec(), ew);
       edge([x1, 0, z0], [x1, h, z0], ec(), ew);
-      if (chance(0.4 * (1 - p.partialBox))) edge([x1, 0, z1], [x1, h, z1], ec(), ew * 0.8);
+      if (chance(0.4 * (1 - p.partialBox)))
+        edge([x1, 0, z1], [x1, h, z1], ec(), ew * 0.8);
 
       // Roof edges.
       edge([x0, h, z0], [x0, h, z1], ec(), ew);

@@ -1,26 +1,39 @@
+:root {
+  /* The one UI accent for the active state, as HWB channels (≈ #16a3b8) so it can
+     be manipulated relatively later — alpha via hwb(var(--active) / a), or shifted
+     whiteness/blackness for hover/disabled states. */
+  --active: 188 9% 28%;
+  /* A single black, as HWB channels — every text/border uses it with an alpha,
+     so greys are just black over the white background. */
+  --ink: 0 0% 100%;
+}
+
 .app {
   display: grid;
   grid-template-columns: 300px 1fr;
   height: 100%;
   width: 100%;
+  /* accent-color inherits, so every range/checkbox picks up the active colour. */
+  accent-color: hwb(var(--active));
 }
 
 /* ---------------- panel ---------------- */
 .panel {
   padding: 20px 18px;
   overflow-y: auto;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid hwb(var(--ink) / 0.1);
   background: #fff;
 }
 .panel h1 {
   font-size: 20px;
   margin: 0;
   letter-spacing: -0.01em;
+  color: hwb(var(--ink) / 0.85);
 }
 .panel .sub {
   margin: 4px 0 18px;
   font-size: 12px;
-  color: #999;
+  color: hwb(var(--ink) / 0.4);
 }
 .panel section {
   margin-bottom: 22px;
@@ -29,12 +42,12 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #aaa;
+  color: hwb(var(--ink) / 0.34);
   margin: 0 0 10px;
 }
 .hint {
   font-size: 11px;
-  color: #aaa;
+  color: hwb(var(--ink) / 0.34);
   line-height: 1.4;
   margin: 6px 0 0;
 }
@@ -48,24 +61,23 @@
 }
 .ctl-label {
   font-size: 11px;
-  color: #555;
+  color: hwb(var(--ink) / 0.66);
 }
 .ctl-value {
   font-size: 11px;
-  color: #999;
+  color: hwb(var(--ink) / 0.42);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .ctl-row input[type="range"] {
   width: 100%;
-  accent-color: #ee4d5a;
 }
 .ctl-check {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #555;
+  color: hwb(var(--ink) / 0.66);
   margin-bottom: 12px;
 }
 
@@ -75,32 +87,32 @@
 .seg button {
   flex: 1;
   padding: 7px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid hwb(var(--ink) / 0.14);
   background: #fff;
 
   font-size: 12px;
   cursor: pointer;
   text-transform: capitalize;
-  color: #555;
+  color: hwb(var(--ink) / 0.66);
 }
 .seg button.on {
-  background: #16a3b8;
-  border-color: #16a3b8;
+  background: hwb(var(--active));
+  border-color: hwb(var(--active));
   color: #fff;
 }
 .reset {
   width: 100%;
   padding: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid hwb(var(--ink) / 0.14);
   background: #fff;
 
   font-size: 12px;
   cursor: pointer;
-  color: #555;
+  color: hwb(var(--ink) / 0.66);
   margin-top: 8px;
 }
 .reset:hover {
-  background: #f5f5f5;
+  background: hwb(var(--ink) / 0.05);
 }
 
 .seed-row {
@@ -113,22 +125,22 @@
   min-width: 0;
   font-size: 11px;
   padding: 5px 7px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid hwb(var(--ink) / 0.14);
 
   font-family: ui-monospace, monospace;
-  color: #444;
+  color: hwb(var(--ink) / 0.72);
 }
 .seed-row button {
   padding: 5px 10px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid hwb(var(--ink) / 0.14);
   background: #fff;
 
   cursor: pointer;
   font-size: 13px;
-  color: #555;
+  color: hwb(var(--ink) / 0.66);
 }
 .seed-row button:hover {
-  background: #f5f5f5;
+  background: hwb(var(--ink) / 0.05);
 }
 
 /* ---------------- stage ---------------- */
@@ -136,7 +148,10 @@
   position: relative;
   overflow: hidden;
   background: #ffffff;
-  background-image: radial-gradient(#efefef 1px, transparent 1px);
+  background-image: radial-gradient(
+    hwb(var(--ink) / 0.06) 1px,
+    transparent 1px
+  );
   background-size: 22px 22px;
   touch-action: none;
 }

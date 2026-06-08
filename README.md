@@ -97,9 +97,10 @@ a numeric **seed** plus a base64 **scene code** (`encodeCity`/`decodeCity`) that
 captures seed + all params; copy it to reproduce the exact city on another
 client. Exclusive sliders: buildings (grid size), height peak, height variability
 (downward-only — adds more low-rises while preserving the peak), window density,
-grid-face density, guideline density, half-box ratio, size variation
-(footprint width/depth spread — also affects the half-defined boxes), and
-looseness.
+grid-face density, grid variability (per-face roll that spreads façade grids
+symmetrically from very dense to very sparse / nearly gone — 0 means every face
+matches), guideline density, half-box ratio, size variation (footprint
+width/depth spread — also affects the half-defined boxes), and looseness.
 
 Switching to the city scene also applies a worm's-eye default camera
 (`CITY_PROJECTION`).

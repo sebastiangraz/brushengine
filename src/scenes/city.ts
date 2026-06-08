@@ -23,6 +23,12 @@ export interface CityParams {
   windowDensity: number;
   /** 0..1 — how often façades get a full construction grid. */
   gridDensity: number;
+  /**
+   * 0..1 — per-face grid density variability. Higher randomly increases the grid
+   * line density, rolled independently per face (not per building), so a single
+   * building can show several different grid densities across its faces.
+   */
+  gridVar: number;
   /** 0..1 — how many left-in guideline / construction strokes. */
   guidelineDensity: number;
   /** 0..1 — how often box edges are omitted or only partially drawn. */
@@ -44,6 +50,7 @@ export const DEFAULT_CITY: CityParams = {
   heightVar: 1,
   windowDensity: 0.16,
   gridDensity: 0.41,
+  gridVar: 0.5,
   guidelineDensity: 1,
   partialBox: 1,
   footprintVar: 1,
@@ -61,6 +68,7 @@ const ORDER: (keyof CityParams)[] = [
   "footprintVar",
   "looseness",
   "heightVar",
+  "gridVar",
 ];
 
 /** Compact, copy-pasteable scene code (base64 of the ordered param array). */
@@ -176,8 +184,13 @@ export function cityScene(p: CityParams): StrokeData[] {
   // Full façade construction grid.
   const faceGrid = (O: Vec3, u: Vec3, v: Vec3, uLen: number, vLen: number) => {
     const col = pick();
-    const nu = Math.max(2, Math.round(uLen / 0.18));
-    const nv = Math.max(2, Math.round(vLen / 0.22));
+    // Per-face density factor: a symmetric (log-space) multiplier around the base
+    // density, rolled independently per face. gridVar widens the spread in both
+    // directions, so faces range from much denser to very sparse / nearly gone;
+    // at gridVar 0 the factor is exactly 1 and every face matches.
+    const densFactor = Math.exp((rnd() * 2 - 1) * p.gridVar * 1.6);
+    const nu = Math.max(1, Math.round((uLen / 0.18) * densFactor));
+    const nv = Math.max(1, Math.round((vLen / 0.22) * densFactor));
     for (let i = 1; i < nu; i++) {
       const uu = (uLen * i) / nu;
       seg(

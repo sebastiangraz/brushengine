@@ -59,20 +59,20 @@ export interface CityParams {
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 666,
-  gridSize: 6,
+  seed: 886,
+  gridSize: 7,
   heightPeak: 1,
   heightVar: 1,
-  windowDensity: 0.16,
-  gridDensity: 0.1,
-  gridVar: 0.83,
+  windowDensity: 0.07,
+  gridDensity: 0.06,
+  gridVar: 0.86,
   gridGaps: 0.35,
-  guidelineDensity: 1,
-  partialBox: 0.88,
+  guidelineDensity: 0.52,
+  partialBox: 0.62,
   footprintVar: 1,
-  wobble: 0.2,
-  guidelineLength: 0.4,
-  lShapeRatio: 0.4,
+  wobble: 0.1,
+  guidelineLength: 0.59,
+  lShapeRatio: 0.5,
 };
 
 const ORDER: (keyof CityParams)[] = [
@@ -480,26 +480,27 @@ export function cityScene(p: CityParams): StrokeData[] {
 
   // Global construction guidelines: long axis-aligned lines that converge to the
   // vanishing points (X-parallel -> VP→X, Z-parallel -> VP→Z) plus stray verticals.
-  const span = N * cell;
-  const nGuides = Math.round(p.guidelineDensity * 7);
-  for (let g = 0; g < nGuides; g++) {
-    const col = pick();
-    const op = rng(0.25, 0.5);
-    const mode = Math.floor(rng(0, 3));
-    if (mode === 0) {
-      const y = rng(0, 2.4);
-      const z = rng(-0.2, span);
-      seg([-0.5, y, z], [span + rng(0.5, 2), y, z], col, 1.1, 0, op, 3);
-    } else if (mode === 1) {
-      const y = rng(0, 2.4);
-      const x = rng(-0.2, span);
-      seg([x, y, -0.5], [x, y, span + rng(0.5, 2)], col, 1.1, 0, op, 3);
-    } else {
-      const x = rng(0, span);
-      const z = rng(0, span);
-      seg([x, -0.2, z], [x, rng(2, 4.5), z], col, 1.1, 0, op, 3);
-    }
-  }
+
+  // const span = N * cell;
+  // const nGuides = Math.round(p.guidelineDensity * 7);
+  // for (let g = 0; g < nGuides; g++) {
+  //   const col = pick();
+  //   const op = rng(0.25, 0.5);
+  //   const mode = Math.floor(rng(0, 3));
+  //   if (mode === 0) {
+  //     const y = rng(0, 2.4);
+  //     const z = rng(-0.2, span);
+  //     seg([-0.5, y, z], [span + rng(0.5, 2), y, z], col, 1.1, 0, op, 3);
+  //   } else if (mode === 1) {
+  //     const y = rng(0, 2.4);
+  //     const x = rng(-0.2, span);
+  //     seg([x, y, -0.5], [x, y, span + rng(0.5, 2)], col, 1.1, 0, op, 3);
+  //   } else {
+  //     const x = rng(0, span);
+  //     const z = rng(0, span);
+  //     seg([x, -0.2, z], [x, rng(2, 4.5), z], col, 1.1, 0, op, 3);
+  //   }
+  // }
 
   return strokes;
 }

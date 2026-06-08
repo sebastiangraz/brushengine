@@ -197,7 +197,7 @@ export function cityScene(p: CityParams): StrokeData[] {
         add(O, mul(u, uu)),
         add(add(O, mul(u, uu)), mul(v, vLen)),
         col,
-        1.6,
+        rng(2, 3.2),
         0,
         0.85,
       );
@@ -208,7 +208,7 @@ export function cityScene(p: CityParams): StrokeData[] {
         add(O, mul(v, vv)),
         add(add(O, mul(v, vv)), mul(u, uLen)),
         col,
-        1.6,
+        rng(2, 3.2),
         0,
         0.85,
       );

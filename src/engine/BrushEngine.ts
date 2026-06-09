@@ -247,11 +247,20 @@ export class BrushEngine {
     }
 
     if (this.global.inkBlend) {
-      // Pass 1: multiply the strokes into the white-cleared offscreen target
-      // (target.rgb = T over white, target.a = coverage).
+      // Pass 1: multiply the strokes into the offscreen target (target.rgb = T
+      // over white, target.a = coverage). The target MUST start at white RGB /
+      // zero alpha — white is the multiply identity, zero alpha means "no ink".
+      // The renderer is premultiplied-alpha, so three's own clear would
+      // premultiply our (1,1,1,0) down to (0,0,0,0) and the multiply blend would
+      // wipe every stroke to black. Clear the target by hand to dodge that.
+      const gl = this.renderer.getContext();
       this.renderer.setRenderTarget(this.target);
+      this.renderer.autoClear = false;
+      gl.clearColor(1, 1, 1, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       this.renderer.render(this.scene, this.camera);
-      // Pass 2: un-premultiply against white onto the transparent canvas.
+      this.renderer.autoClear = true;
+      // Pass 2: convert (T, coverage) to premultiplied colour onto the canvas.
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.compositeScene, this.camera);
     } else {

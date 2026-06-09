@@ -70,15 +70,20 @@ export class BrushEngine {
       canvas,
       alpha: true,
       antialias: true,
-      premultipliedAlpha: false,
+      // The composite pass emits premultiplied colour (see compositeFragmentShader),
+      // so the canvas must be a premultiplied-alpha surface.
+      premultipliedAlpha: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0xffffff, 0);
 
-    // Half-float keeps the multiply/un-premultiply precise (the un-premultiply
-    // divides by small alphas, which would band badly at 8-bit).
+    // Plain 8-bit is enough: the composite only SUBTRACTS to un-premultiply
+    // (Cp = T - (1 - a)), it never divides by alpha, so there's no precision
+    // blow-up at soft edges. We deliberately avoid a HalfFloat target here —
+    // Safari/WebKit can't reliably MSAA-resolve an RGBA16F colour buffer, which
+    // left the offscreen coverage aliased and the old divide amplified that into
+    // hard, pixelated brush edges. An 8-bit MSAA target resolves everywhere.
     this.target = new THREE.WebGLRenderTarget(1, 1, {
-      type: THREE.HalfFloatType,
       depthBuffer: false,
       stencilBuffer: false,
       magFilter: THREE.NearestFilter,

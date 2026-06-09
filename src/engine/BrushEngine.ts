@@ -1,5 +1,10 @@
 import * as THREE from "three";
-import { vertexShader, fragmentShader } from "./shaders";
+import {
+  vertexShader,
+  fragmentShader,
+  compositeVertexShader,
+  compositeFragmentShader,
+} from "./shaders";
 import { buildMergedGeometry, type BatchItem } from "./Stroke";
 import type { GlobalStyle, ProjectionParams, StrokeData } from "./types";
 
@@ -55,6 +60,11 @@ export class BrushEngine {
   private raf = 0;
   private dirty = true; // only do work / re-render when something changed
 
+  // Offscreen target + fullscreen composite for the two-pass ink-mix pipeline.
+  private target: THREE.WebGLRenderTarget;
+  private compositeScene = new THREE.Scene();
+  private compositeMat: THREE.RawShaderMaterial;
+
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -64,6 +74,34 @@ export class BrushEngine {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0xffffff, 0);
+
+    // Half-float keeps the multiply/un-premultiply precise (the un-premultiply
+    // divides by small alphas, which would band badly at 8-bit).
+    this.target = new THREE.WebGLRenderTarget(1, 1, {
+      type: THREE.HalfFloatType,
+      depthBuffer: false,
+      stencilBuffer: false,
+      magFilter: THREE.NearestFilter,
+      minFilter: THREE.NearestFilter,
+      samples: 4, // MSAA on the offscreen pass so stroke edges stay smooth
+    });
+    const quad = new THREE.BufferGeometry();
+    quad.setAttribute(
+      "aPos",
+      new THREE.BufferAttribute(new Float32Array([-1, -1, 3, -1, -1, 3]), 2),
+    );
+    quad.setIndex([0, 1, 2]); // so three knows the vertex count to draw
+    this.compositeMat = new THREE.RawShaderMaterial({
+      vertexShader: compositeVertexShader,
+      fragmentShader: compositeFragmentShader,
+      uniforms: { uTex: { value: this.target.texture } },
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NoBlending,
+    });
+    const mesh = new THREE.Mesh(quad, this.compositeMat);
+    mesh.frustumCulled = false;
+    this.compositeScene.add(mesh);
   }
 
   setBrushes(textures: THREE.Texture[]) {
@@ -128,25 +166,26 @@ export class BrushEngine {
   }
 
   /**
-   * Configure blending for the current ink-mix setting.
-   * - ink mix on: opaque white canvas + multiply blending (dst * src), so
-   *   overlapping ink darkens. Order-independent, so no sorting needed.
-   * - off: transparent canvas + ordinary alpha ("over") blending.
+   * Configure blending for the current ink-mix setting. The canvas is always
+   * transparent (cleared to white *rgb* but zero alpha — the white rgb is the
+   * multiply identity; the zero alpha keeps non-ink areas see-through).
+   * - ink mix on: RGB multiplies (dst * src) so overlapping ink darkens, while
+   *   alpha accumulates "over" so coverage builds up. Order-independent.
+   * - off: ordinary alpha "over" on both channels.
    */
   private applyBlendMode() {
-    const ink = this.global.inkBlend;
-    this.renderer.setClearColor(0xffffff, ink ? 1 : 0);
+    this.renderer.setClearColor(0xffffff, 0);
     for (const b of this.batches) {
       const m = b.material;
-      m.uniforms.uInkBlend.value = ink ? 1 : 0;
-      if (ink) {
+      m.uniforms.uInkBlend.value = this.global.inkBlend ? 1 : 0;
+      if (this.global.inkBlend) {
         m.blending = THREE.CustomBlending;
         m.blendEquation = THREE.AddEquation;
-        m.blendSrc = THREE.ZeroFactor;
+        m.blendSrc = THREE.ZeroFactor; // RGB: dst * src  (multiply / darken)
         m.blendDst = THREE.SrcColorFactor;
         m.blendEquationAlpha = THREE.AddEquation;
-        m.blendSrcAlpha = THREE.ZeroFactor;
-        m.blendDstAlpha = THREE.OneFactor; // keep the canvas opaque
+        m.blendSrcAlpha = THREE.OneFactor; // alpha: src + dst*(1-src)  (over)
+        m.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
       } else {
         m.blending = THREE.NormalBlending;
       }
@@ -172,6 +211,8 @@ export class BrushEngine {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.renderer.setSize(this.width, this.height, false);
+    const s = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.target.setSize(Math.max(1, s.x), Math.max(1, s.y));
     this.dirty = true;
   }
 
@@ -200,7 +241,19 @@ export class BrushEngine {
       if (this.brushes[bi]) u.uBrush.value = this.brushes[bi];
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.global.inkBlend) {
+      // Pass 1: multiply the strokes into the white-cleared offscreen target
+      // (target.rgb = T over white, target.a = coverage).
+      this.renderer.setRenderTarget(this.target);
+      this.renderer.render(this.scene, this.camera);
+      // Pass 2: un-premultiply against white onto the transparent canvas.
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(this.compositeScene, this.camera);
+    } else {
+      // Plain alpha mode draws straight to the transparent canvas.
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(this.scene, this.camera);
+    }
   };
 
   render() {
@@ -228,6 +281,8 @@ export class BrushEngine {
       b.material.dispose();
     }
     this.batches = [];
+    this.target.dispose();
+    this.compositeMat.dispose();
     this.renderer.dispose();
   }
 }

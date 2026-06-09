@@ -90,12 +90,44 @@ void main() {
   if (a < 0.01) discard;
 
   if (uInkBlend > 0.5) {
-    // Multiply blending against an opaque white canvas: output a per-channel
-    // ink "transmission". No ink (a=0) -> white -> multiply is a no-op; full
-    // ink -> vColor. Overlaps multiply together and darken, even same colours.
-    gl_FragColor = vec4(mix(vec3(1.0), vColor, a), 1.0);
+    // CMYK ink mix on a transparent canvas. The RGB blend multiplies (dst * src)
+    // against a white-cleared framebuffer, so the colour we emit IS the multiply
+    // factor: a coverage-weighted mix(white, colour, a) — full ink darkens fully,
+    // faint/edge pixels barely darken (matches the old opaque-white look). Alpha
+    // carries straight coverage and accumulates "over", so non-ink stays
+    // transparent (the page shows through).
+    gl_FragColor = vec4(mix(vec3(1.0), vColor, a), a);
   } else {
-    gl_FragColor = vec4(vColor, a);
+    gl_FragColor = vec4(vColor, a); // ordinary alpha "over"
   }
+}
+`;
+
+// --- ink-mix composite pass -------------------------------------------------
+// In ink mode the strokes are first drawn into an offscreen target cleared to
+// white: RGB multiplies (giving the exact opaque-white result T) while alpha
+// accumulates coverage. This pass un-premultiplies that against white, so the
+// result reproduces T at full strength when composited over the (white) page,
+// stays transparent where there's no ink, and composites correctly elsewhere.
+export const compositeVertexShader = /* glsl */ `
+precision highp float;
+attribute vec2 aPos;
+varying vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+export const compositeFragmentShader = /* glsl */ `
+precision highp float;
+uniform sampler2D uTex;
+varying vec2 vUv;
+void main() {
+  vec4 t = texture2D(uTex, vUv);     // t.rgb = T (ink over white), t.a = coverage
+  float a = t.a;
+  // Un-premultiply T against white: rgb*a + (1-a) == T  =>  rgb = (T-1+a)/a.
+  vec3 rgb = a > 1e-4 ? (t.rgb - (1.0 - a)) / a : vec3(0.0);
+  gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), a);
 }
 `;

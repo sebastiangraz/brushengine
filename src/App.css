@@ -160,7 +160,7 @@
 .stage {
   position: relative;
   overflow: hidden;
-  background: #ffffff;
+  background: transparent;
   background-image: radial-gradient(
     hwb(var(--ink) / 0.06) 1px,
     transparent 1px

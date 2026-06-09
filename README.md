@@ -26,11 +26,23 @@ npm run build    # type-check + production build
   alpha channel and is recoloured per stroke. Strokes pick a brush per stroke,
   with a global override in the UI.
 - **CMYK ink mix** (toggle, on by default): overlapping strokes *multiply* like
-  real ink, so crossings darken — even two strokes of the same colour. This uses
-  GPU multiply blending against an opaque white canvas, where each fragment emits
-  `mix(white, inkColor, coverage)` (no ink → white → multiply is a no-op).
-  Multiply is order-independent, so no per-stroke sorting is needed in this mode.
-  Turn it off for ordinary alpha blending over a transparent canvas.
+  real ink, so crossings darken — even two strokes of the same colour — while the
+  canvas stays **transparent** so the page shows through. It's a two-pass pipeline
+  (`BrushEngine.renderOnce` + the composite shaders):
+  1. Strokes are drawn into an offscreen target cleared to **white**. RGB blends
+     with a multiply (`dst * src`) using a coverage-weighted `mix(white, colour,
+     a)` factor — so the target accumulates exactly the opaque-white result `T`
+     (full ink darkens fully, faint/edge pixels barely darken). Alpha blends
+     "over" to record coverage.
+  2. A fullscreen pass **un-premultiplies `T` against white** (`rgb = (T-1+a)/a`,
+     `alpha = a`) onto the transparent canvas. Over the (white) page this
+     reproduces `T` at full strength — no fading — yet stays see-through where
+     there's no ink, and composites correctly over any background.
+
+  The target is half-float + MSAA (the un-premultiply divides by small alphas, so
+  8-bit would band, and MSAA keeps edges smooth). Multiply is order-independent,
+  so no per-stroke sorting is needed. Turn it off for ordinary alpha blending
+  (single pass, straight to the canvas).
 
 ## How the 2-point projection works
 

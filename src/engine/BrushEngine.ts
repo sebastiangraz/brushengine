@@ -4,6 +4,7 @@ import {
   fragmentShader,
   compositeVertexShader,
   compositeFragmentShader,
+  whiteFillFragmentShader,
 } from "./shaders";
 import { buildMergedGeometry, type BatchItem } from "./Stroke";
 import type { GlobalStyle, ProjectionParams, StrokeData } from "./types";
@@ -64,6 +65,9 @@ export class BrushEngine {
   private target: THREE.WebGLRenderTarget;
   private compositeScene = new THREE.Scene();
   private compositeMat: THREE.RawShaderMaterial;
+  // Paints the white multiply-identity into the ink target (see whiteFillFragmentShader).
+  private whiteFillScene = new THREE.Scene();
+  private whiteFillMat: THREE.RawShaderMaterial;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -107,6 +111,17 @@ export class BrushEngine {
     const mesh = new THREE.Mesh(quad, this.compositeMat);
     mesh.frustumCulled = false;
     this.compositeScene.add(mesh);
+
+    this.whiteFillMat = new THREE.RawShaderMaterial({
+      vertexShader: compositeVertexShader,
+      fragmentShader: whiteFillFragmentShader,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NoBlending,
+    });
+    const fillMesh = new THREE.Mesh(quad, this.whiteFillMat);
+    fillMesh.frustumCulled = false;
+    this.whiteFillScene.add(fillMesh);
   }
 
   setBrushes(textures: THREE.Texture[]) {
@@ -255,14 +270,11 @@ export class BrushEngine {
     if (this.global.inkBlend) {
       // Pass 1: multiply strokes into the target (target.rgb = T over white,
       // target.a = coverage). The target MUST start at white RGB / zero alpha —
-      // white is the multiply identity, zero alpha means "no ink". The renderer
-      // is premultiplied-alpha, so three's own clear would premultiply our
-      // (1,1,1,0) down to (0,0,0,0) and the multiply blend would wipe every
-      // stroke to black. Clear the target by hand to dodge that.
-      const gl = this.renderer.getContext();
+      // white is the multiply identity, zero alpha means "no ink". Paint that
+      // identity with the white-fill quad (the clear can't produce it under
+      // premultiplied-alpha), then multiply the strokes over it without clearing.
+      this.renderer.render(this.whiteFillScene, this.camera);
       this.renderer.autoClear = false;
-      gl.clearColor(1, 1, 1, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
       this.renderer.render(this.scene, this.camera);
       this.renderer.autoClear = true;
     } else {
@@ -302,6 +314,7 @@ export class BrushEngine {
     this.batches = [];
     this.target.dispose();
     this.compositeMat.dispose();
+    this.whiteFillMat.dispose();
     this.renderer.dispose();
   }
 }

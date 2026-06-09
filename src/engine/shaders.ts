@@ -98,9 +98,11 @@ void main() {
     // "over", so non-ink stays transparent (the page shows through).
     gl_FragColor = vec4(mix(vec3(1.0), vColor, a), a);
   } else {
-    // Ordinary "over" straight to the canvas. The canvas is premultiplied-alpha,
-    // so emit premultiplied colour (three's NormalBlending uses ONE for src).
-    gl_FragColor = vec4(vColor * a, a);
+    // Ordinary "over" into the offscreen target. Emit STRAIGHT colour: three's
+    // NormalBlending picks its blend factors from material.premultipliedAlpha
+    // (false by default), so it uses SRC_ALPHA and premultiplies this once into
+    // the target. Pre-multiplying here as well would double it and darken edges.
+    gl_FragColor = vec4(vColor, a);
   }
 }
 `;
@@ -121,6 +123,19 @@ varying vec2 vUv;
 void main() {
   vUv = aPos * 0.5 + 0.5;
   gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+// Fills the ink target with the multiply identity (white RGB, zero alpha). We
+// PAINT it rather than clear to it: under premultiplied-alpha the renderer
+// premultiplies every clear colour by its alpha, so a clear can never produce
+// (1,1,1,0) — and bypassing three's clear with a raw gl.clearColor desyncs its
+// cached clear state, which silently breaks later clears. A NoBlending quad
+// writes the exact value and leaves three's state untouched.
+export const whiteFillFragmentShader = /* glsl */ `
+precision highp float;
+void main() {
+  gl_FragColor = vec4(1.0, 1.0, 1.0, 0.0);
 }
 `;
 

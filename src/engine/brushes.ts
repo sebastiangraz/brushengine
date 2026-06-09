@@ -1,10 +1,6 @@
 import * as THREE from "three";
 
-export const BRUSH_URLS = [
-  "/brushes/stroke1.svg",
-  "/brushes/stroke2.svg",
-  "/brushes/stroke3.svg",
-];
+export const BRUSH_URLS = ["/brushes/stroke1.svg", "/brushes/stroke2.svg"];
 
 /**
  * Load the bundled SVG strokes as textures. SVGs render into an <img>, which we

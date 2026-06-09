@@ -18,12 +18,12 @@ const DEFAULT_PROJECTION: ProjectionParams = {
 
 // Worm's-eye view that suits a clustered skyline rising from a ground line.
 const CITY_PROJECTION: ProjectionParams = {
-  vpX: { x: 2.2, y: -1 },
-  vpZ: { x: -2.2, y: -1 },
-  origin: { x: 0.5, y: -1 },
+  vpX: { x: 2.2, y: -2 },
+  vpZ: { x: -2.2, y: -2 },
+  origin: { x: 0.5, y: -2 },
   perspective: 0.75,
   verticalScale: 1.5,
-  zoom: 0.3,
+  zoom: 0.4,
 };
 
 const SCENE_PROJECTION: Record<string, ProjectionParams> = {
@@ -38,7 +38,7 @@ export default function App() {
     useState<ProjectionParams>(DEFAULT_PROJECTION);
   const [globalStyle, setGlobalStyle] = useState<GlobalStyle>({
     thicknessFalloff: 0,
-    brushOverride: 2,
+    brushOverride: 1,
     inkBlend: true,
   });
   const [showGuides, setShowGuides] = useState(true);

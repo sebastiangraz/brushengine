@@ -67,21 +67,21 @@ export interface CityParams {
 }
 
 export const DEFAULT_CITY: CityParams = {
-  seed: 886,
-  gridSize: 7,
+  seed: 539,
+  gridSize: 6,
   heightPeak: 1,
   heightVar: 1,
-  windowDensity: 0.07,
-  gridDensity: 0.06,
-  gridVar: 0.86,
-  gridGaps: 0.35,
-  gridRatio: 0.3,
-  guidelineDensity: 0.52,
-  partialBox: 0.62,
+  windowDensity: 0.15,
+  gridDensity: 0.25,
+  gridVar: 0.9,
+  gridGaps: 0.6,
+  gridRatio: 0.84,
+  guidelineDensity: 0.32,
+  partialBox: 0.8,
   footprintVar: 1,
-  wobble: 0.1,
+  wobble: 0,
   guidelineLength: 0.59,
-  lShapeRatio: 0.5,
+  lShapeRatio: 0.8,
 };
 
 const ORDER: (keyof CityParams)[] = [
@@ -208,7 +208,7 @@ export function cityScene(p: CityParams): StrokeData[] {
       const vy = v0 + ((v1 - v0) * r) / rows;
       const a = add(add(O, mul(u, u0)), mul(v, vy));
       const b = add(add(O, mul(u, u0 + w * rng(0.7, 1))), mul(v, vy));
-      seg(a, b, col, rng(2, 3.2), 1, 0.95, 2);
+      seg(a, b, col, rng(2, 3.2), 0, 0.95, 2);
     }
   };
 
@@ -229,8 +229,14 @@ export function cityScene(p: CityParams): StrokeData[] {
       const aspect = Math.pow(2, (rnd() * 2 - 1) * 4 * p.gridRatio); // log2 up to ±4
       rs = Math.sqrt(aspect);
     }
-    const nu = Math.min(48, Math.max(1, Math.round((uLen / 0.18) * densFactor * rs)));
-    const nvFull = Math.min(48, Math.max(1, Math.round((vLen / 0.22) * densFactor / rs)));
+    const nu = Math.min(
+      48,
+      Math.max(1, Math.round((uLen / 0.18) * densFactor * rs)),
+    );
+    const nvFull = Math.min(
+      48,
+      Math.max(1, Math.round(((vLen / 0.22) * densFactor) / rs)),
+    );
 
     // Decide the height chunking (bands as 0..1 fractions of the face height).
     const g = p.gridGaps;
@@ -241,7 +247,8 @@ export function cityScene(p: CityParams): StrokeData[] {
       const K = 2 + Math.floor(rnd() * 3);
       const pad = (1 - 0.62) / 2; // each stripe fills ~62% of its slot
       bands = [];
-      for (let k = 0; k < K; k++) bands.push([(k + pad) / K, (k + 1 - pad) / K]);
+      for (let k = 0; k < K; k++)
+        bands.push([(k + pad) / K, (k + 1 - pad) / K]);
       capped = true;
     } else if (chance(g)) {
       // Single partial chunk covering 20-60% of the face, placed anywhere.

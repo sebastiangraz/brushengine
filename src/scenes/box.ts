@@ -2,9 +2,9 @@ import type { StrokeData, Vec3 } from "../engine/types";
 import { line } from "./helpers";
 
 export const PALETTE = {
-  yellow: "#f5c518",
-  red: "#ee4d5a",
-  teal: "#16a3b8",
+  yellow: "#D5B308",
+  red: "#C43041",
+  teal: "#006E83",
 };
 
 /**
@@ -26,17 +26,29 @@ export function buildingScene(): StrokeData[] {
     color: string,
     widthPx: number,
     brush = 1,
-    opacity = 1
+    opacity = 1,
   ) => strokes.push({ points: pts, style: { color, widthPx, brush, opacity } });
 
   // ---- Yellow left face (plane x = 0), grid in (z, y) ----
   for (let c = 1; c < cols; c++) {
     const z = (D * c) / cols;
-    push(line([0, 0, z], [0, H, z], 10, 0.025, seed++), PALETTE.yellow, 11, 1, 1);
+    push(
+      line([0, 0, z], [0, H, z], 10, 0.025, seed++),
+      PALETTE.yellow,
+      11,
+      1,
+      1,
+    );
   }
   for (let r = 1; r < rows; r++) {
     const y = (H * r) / rows;
-    push(line([0, y, 0], [0, y, D], 12, 0.025, seed++), PALETTE.yellow, 11, 1, 1);
+    push(
+      line([0, y, 0], [0, y, D], 12, 0.025, seed++),
+      PALETTE.yellow,
+      11,
+      1,
+      1,
+    );
   }
 
   // ---- Red right face (plane z = 0), grid in (x, y) ----

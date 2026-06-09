@@ -294,7 +294,6 @@ export function ControlPanel({
             { v: null as number | null, label: "auto" },
             { v: 0, label: "stroke 1" },
             { v: 1, label: "stroke 2" },
-            { v: 2, label: "stroke 3" },
           ].map((b) => (
             <button
               key={String(b.v)}

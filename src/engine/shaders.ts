@@ -127,14 +127,18 @@ void main() {
 export const compositeFragmentShader = /* glsl */ `
 precision highp float;
 uniform sampler2D uTex;
+uniform float uInk;   // 1 = ink-mix target, 0 = plain "over" target (already premult)
 varying vec2 vUv;
 void main() {
-  vec4 t = texture2D(uTex, vUv);     // t.rgb = T (ink over white), t.a = coverage
+  vec4 t = texture2D(uTex, vUv);
   float a = t.a;
-  // Premultiplied output: Cp = T - (1 - a). Over a page of colour P this yields
-  // Cp + (1-a)*P = T - (1-a)(1-P) — identical to the old un-premultiply-then-over
-  // path, but with no divide, so it stays smooth at 8-bit. Cp <= a always holds
-  // (T <= 1), so clamping the low end gives a valid premultiplied colour.
-  gl_FragColor = vec4(clamp(t.rgb - (1.0 - a), 0.0, 1.0), a);
+  // Both modes render into the MSAA offscreen target (the only AA path Safari
+  // resolves reliably) and this pass blits it to the premultiplied canvas.
+  //   ink:    t.rgb = T (ink over white). Premultiplied output Cp = T - (1 - a),
+  //           which over a page of colour P gives T - (1-a)(1-P) — the ink-mix
+  //           result, with no divide so it stays smooth at 8-bit.
+  //   normal: t already holds premultiplied "over" colour; copy it straight.
+  vec3 rgb = uInk > 0.5 ? (t.rgb - (1.0 - a)) : t.rgb;
+  gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), a);
 }
 `;

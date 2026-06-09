@@ -99,7 +99,7 @@ export class BrushEngine {
     this.compositeMat = new THREE.RawShaderMaterial({
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
-      uniforms: { uTex: { value: this.target.texture } },
+      uniforms: { uTex: { value: this.target.texture }, uInk: { value: 1 } },
       depthTest: false,
       depthWrite: false,
       blending: THREE.NoBlending,
@@ -246,28 +246,33 @@ export class BrushEngine {
       if (this.brushes[bi]) u.uBrush.value = this.brushes[bi];
     }
 
+    // Both modes render into the offscreen MSAA target first, then a composite
+    // pass blits it to the canvas. Routing plain "over" through the same target
+    // (rather than straight to the default framebuffer) is deliberate: Safari
+    // won't reliably multisample the default drawing buffer, so direct-to-canvas
+    // strokes came out jagged — explicit render-target MSAA resolves everywhere.
+    this.renderer.setRenderTarget(this.target);
     if (this.global.inkBlend) {
-      // Pass 1: multiply the strokes into the offscreen target (target.rgb = T
-      // over white, target.a = coverage). The target MUST start at white RGB /
-      // zero alpha — white is the multiply identity, zero alpha means "no ink".
-      // The renderer is premultiplied-alpha, so three's own clear would
-      // premultiply our (1,1,1,0) down to (0,0,0,0) and the multiply blend would
-      // wipe every stroke to black. Clear the target by hand to dodge that.
+      // Pass 1: multiply strokes into the target (target.rgb = T over white,
+      // target.a = coverage). The target MUST start at white RGB / zero alpha —
+      // white is the multiply identity, zero alpha means "no ink". The renderer
+      // is premultiplied-alpha, so three's own clear would premultiply our
+      // (1,1,1,0) down to (0,0,0,0) and the multiply blend would wipe every
+      // stroke to black. Clear the target by hand to dodge that.
       const gl = this.renderer.getContext();
-      this.renderer.setRenderTarget(this.target);
       this.renderer.autoClear = false;
       gl.clearColor(1, 1, 1, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       this.renderer.render(this.scene, this.camera);
       this.renderer.autoClear = true;
-      // Pass 2: convert (T, coverage) to premultiplied colour onto the canvas.
-      this.renderer.setRenderTarget(null);
-      this.renderer.render(this.compositeScene, this.camera);
     } else {
-      // Plain alpha mode draws straight to the transparent canvas.
-      this.renderer.setRenderTarget(null);
+      // Plain "over": three clears the target to transparent (premultiplied
+      // (1,1,1,0) -> (0,0,0,0)), strokes composite premultiplied over it.
       this.renderer.render(this.scene, this.camera);
     }
+    this.compositeMat.uniforms.uInk.value = this.global.inkBlend ? 1 : 0;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.compositeScene, this.camera);
   };
 
   render() {

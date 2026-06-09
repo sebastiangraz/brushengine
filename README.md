@@ -6,9 +6,60 @@ renders collections of 3D paths as **flat brush strokes** under a **custom
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # type-check + production build
+npm run dev      # http://localhost:5173  (playground / editor)
+npm run build    # type-check + playground production build (-> dist-app/)
+npm run build:lib  # build the distributable package (-> dist/)
 ```
+
+## Use as a package
+
+The renderer and the city generator ship as a framework-agnostic library
+(`src/lib/index.ts`), built with Vite library mode (`npm run build:lib`). It has
+**no React dependency** and a single **peer dependency on `three`**. The two
+brush SVGs are base64-**inlined** (`src/engine/brushData.ts`, regenerate with
+`npm run gen:brushes`), so the package is self-contained — nothing to copy or
+serve.
+
+```ts
+import {
+  BrushEngine, loadBrushTextures, cityScene, DEFAULT_CITY,
+} from "brushengine";
+
+const engine = new BrushEngine(canvas);          // a <canvas> element
+engine.setBrushes(await loadBrushTextures());    // inlined data URIs by default
+engine.setStrokes(cityScene(DEFAULT_CITY));
+engine.resize(canvas.clientWidth, canvas.clientHeight);
+engine.start();                                  // dirty-flagged loop; idle = free
+```
+
+The engine touches `document` at import time, so on SSR frameworks (Next, etc.)
+import and construct it **client-side only** (dynamic import in an effect).
+
+### Parallax on scroll
+
+The vanishing points are runtime projection params, so a scroll-driven parallax
+is just lerping them and calling `setProjection` — no geometry rebuild:
+
+```ts
+const base = engine.getProjection();
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+function onScroll(t: number) {        // t = 0..1 scroll progress through the section
+  engine.setProjection({
+    ...base,
+    vpX:    { x: lerp(base.vpX.x,  1.3, t), y: lerp(base.vpX.y, 0.1, t) },
+    vpZ:    { x: lerp(base.vpZ.x, -1.3, t), y: lerp(base.vpZ.y, 0.1, t) },
+    origin: { x: base.origin.x,             y: lerp(base.origin.y, -0.4, t) },
+  });
+}
+```
+
+Keep VP moves modest and `perspective` low so every corner's homogeneous depth
+stays `> 0` (see the projection note below). Throttle `onScroll` to rAF and only
+run it while the canvas is on screen.
+
+> The package is currently `"private": true` and named `brushengine`. To publish,
+> pick a (scoped) name and remove `private` from `package.json`.
 
 ## What it does
 
@@ -22,9 +73,10 @@ npm run build    # type-check + production build
   horizontal vanishing points anywhere on screen (drag the pink handles), and
   vertical world lines always stay parallel. Focal length, vertical scale, and a
   2D zoom are separate knobs.
-- Brush textures are bundled SVGs (`public/brushes/`); the ink lives in the
-  alpha channel and is recoloured per stroke. Strokes pick a brush per stroke,
-  with a global override in the UI.
+- Brush textures are bundled SVGs (`public/brushes/`, base64-inlined into the
+  package via `src/engine/brushData.ts`); the ink lives in the alpha channel and
+  is recoloured per stroke. Strokes pick a brush per stroke, with a global
+  override in the UI.
 - **CMYK ink mix** (toggle, on by default): overlapping strokes *multiply* like
   real ink, so crossings darken — even two strokes of the same colour — while the
   canvas stays **transparent** so the page shows through. It's a two-pass pipeline
@@ -95,7 +147,10 @@ src/
     shaders.ts      vertex (projection + ribbon expansion) + fragment shaders
     Stroke.ts       merge many strokes -> one batched ribbon geometry
     brushes.ts      load bundled SVG strokes as textures
+    brushData.ts    base64-inlined brush SVGs (generated; npm run gen:brushes)
     BrushEngine.ts  renderer, per-brush batched meshes, dirty-flagged render loop
+  lib/
+    index.ts        public package API (re-exports engine + city + types)
   scenes/
     helpers.ts      subdivide + wobble a segment into a hand-drawn polyline
     box.ts          gridded building

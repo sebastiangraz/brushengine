@@ -1,4 +1,5 @@
 node_modules
 dist
+dist-app
 *.local
 .DS_Store

@@ -1,14 +1,16 @@
 import * as THREE from "three";
-
-export const BRUSH_URLS = ["/brushes/stroke1.svg", "/brushes/stroke2.svg"];
+import { BRUSH_DATA_URIS } from "./brushData";
 
 /**
  * Load the bundled SVG strokes as textures. SVGs render into an <img>, which we
  * upload as a normal texture; the ink lives in the alpha channel and is recolored
  * per-stroke in the fragment shader.
+ *
+ * Defaults to the inlined base64 data URIs (see brushData.ts) so the package is
+ * self-contained; pass your own URLs to override.
  */
 export function loadBrushTextures(
-  urls: string[] = BRUSH_URLS,
+  urls: string[] = BRUSH_DATA_URIS,
 ): Promise<THREE.Texture[]> {
   const loader = new THREE.TextureLoader();
   return Promise.all(

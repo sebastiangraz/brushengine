@@ -34,8 +34,9 @@ const SCENE_PROJECTION: Record<string, ProjectionParams> = {
 
 export default function App() {
   const [scene, setScene] = useState("city");
-  const [projection, setProjection] =
-    useState<ProjectionParams>(DEFAULT_PROJECTION);
+  const [projection, setProjection] = useState<ProjectionParams>(
+    SCENE_PROJECTION[scene] ?? DEFAULT_PROJECTION,
+  );
   const [globalStyle, setGlobalStyle] = useState<GlobalStyle>({
     thicknessFalloff: 0,
     brushOverride: 1,

@@ -58,9 +58,13 @@ function cpuTrial(iters) {
   return dt / iters;
 }
 
-window.runPerf = ({ mode, iters = 300, trials = 11 }) => {
+// Defaults are tuned for CI's software renderer (SwiftShader ~tens of ms/frame):
+// the structural gate needs just ONE render, and CPU timing is only an
+// informational trend, so a handful of samples is plenty. Bump via env if you
+// want tighter local numbers (PERF_ITERS / PERF_TRIALS, see run.mjs).
+window.runPerf = ({ mode, iters = 25, trials = 5 }) => {
   engine.setGlobalStyle({ thicknessFalloff: 0, brushOverride: null, inkBlend: mode === "ink" });
-  for (let i = 0; i < 60; i++) engine.render(); // warm up shader compile / caches
+  for (let i = 0; i < 8; i++) engine.render(); // warm up shader compile / caches
   gl.finish();
 
   const structural = frameStats();

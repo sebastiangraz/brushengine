@@ -38,12 +38,19 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 
+// Optional overrides for tighter local numbers; CI uses the harness defaults.
+const opts = {};
+if (process.env.PERF_ITERS) opts.iters = +process.env.PERF_ITERS;
+if (process.env.PERF_TRIALS) opts.trials = +process.env.PERF_TRIALS;
+
 let result;
 try {
-  await page.goto(`${base}/perf/harness.html`, { waitUntil: "networkidle" });
+  // 'domcontentloaded' + the __ready flag is faster and more robust than
+  // 'networkidle' (Vite's HMR socket can keep the network from ever idling).
+  await page.goto(`${base}/perf/harness.html`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction("window.__ready === true", null, { timeout: 60000 });
-  const ink = await page.evaluate(() => window.runPerf({ mode: "ink" }));
-  const normal = await page.evaluate(() => window.runPerf({ mode: "normal" }));
+  const ink = await page.evaluate((o) => window.runPerf({ mode: "ink", ...o }), opts);
+  const normal = await page.evaluate((o) => window.runPerf({ mode: "normal", ...o }), opts);
   result = { runner: { swiftshader: true }, ink, normal };
 } finally {
   await browser.close();

@@ -1,0 +1,86 @@
+name: render-perf
+
+# Benchmarks the WebGL render path on the PR head and on the PR's base branch,
+# then posts a diff as a sticky PR comment. Fails the build on STRUCTURAL
+# regressions (more draw calls / triangles / shader programs / GPU objects).
+# CPU timing is reported as a trend only (it runs on SwiftShader in CI, so it's
+# relative, not hardware-truth). See perf/README.md.
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "perf/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/perf.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per PR; cancel superseded runs.
+concurrency:
+  group: perf-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  render-perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the base commit to diff against
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # head = this PR's code
+      - name: Benchmark head
+        run: node perf/run.mjs perf-head.json
+
+      # base = the branch this PR targets. Swap only src/ so node_modules + the
+      # perf scripts stay on the head version (matches how we benchmark locally).
+      - name: Benchmark base
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }} -- src
+          node perf/run.mjs perf-base.json
+          git checkout HEAD -- src
+
+      - name: Compare (gate)
+        id: compare
+        continue-on-error: true # post the comment even when the gate fails
+        run: node perf/compare.mjs perf-base.json perf-head.json perf-report.md
+
+      - name: Sticky PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const body = fs.readFileSync("perf-report.md", "utf8");
+            const marker = "<!-- brushengine-perf -->";
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find((c) => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Note accepted regression
+        if: steps.compare.outcome == 'failure' && contains(github.event.pull_request.labels.*.name, 'perf-accept')
+        run: echo "::warning::Structural perf regression accepted via the 'perf-accept' label."
+
+      - name: Enforce structural gate
+        if: steps.compare.outcome == 'failure' && !contains(github.event.pull_request.labels.*.name, 'perf-accept')
+        run: |
+          echo "::error::Structural render regression vs base — see the perf comment on the PR."
+          echo "If the change is intentional, add the 'perf-accept' label to override."
+          exit 1

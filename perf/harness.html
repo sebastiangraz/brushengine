@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>brushengine perf harness</title>
+<style>html,body{margin:0;background:#fff}#c{width:1280px;height:720px;display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// In-page benchmark. Driven by perf/run.mjs (Playwright), which calls
+// window.runPerf(...) and reads the returned metrics. Kept dependency-free of
+// the app/React so it measures the engine's render path in isolation.
+import { BrushEngine } from "/src/engine/BrushEngine.ts";
+import { loadBrushTextures } from "/src/engine/brushes.ts";
+import { cityScene, DEFAULT_CITY } from "/src/scenes/city.ts";
+
+const canvas = document.getElementById("c");
+const engine = new BrushEngine(canvas);
+engine.setBrushes(await loadBrushTextures());
+const strokes = cityScene(DEFAULT_CITY);
+engine.setStrokes(strokes);
+engine.resize(1280, 720);
+
+const gl = engine.renderer.getContext();
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[s.length >> 1]; };
+
+// renderOnce() issues several renderer.render() passes and three resets the
+// render counters on each, so disable auto-reset and reset once per frame to
+// count ALL passes.
+engine.renderer.info.autoReset = false;
+
+function frameStats() {
+  engine.renderer.info.reset();
+  engine.render();
+  gl.finish();
+  const r = engine.renderer.info.render;
+  const m = engine.renderer.info.memory;
+  return {
+    drawCalls: r.calls,
+    triangles: r.triangles,
+    programs: engine.renderer.info.programs?.length ?? 0,
+    geometries: m.geometries,
+    textures: m.textures,
+  };
+}
+
+function rendered() { // guard: confirm the frame isn't blank
+  const px = new Uint8Array(4);
+  gl.readPixels((gl.drawingBufferWidth / 2) | 0, (gl.drawingBufferHeight / 2) | 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  return px[3] > 0 || px[0] + px[1] + px[2] > 0;
+}
+
+// Pure JS dispatch cost of a render (no GPU sync) — the CPU-side signal.
+function cpuTrial(iters) {
+  const t0 = performance.now();
+  for (let i = 0; i < iters; i++) engine.render();
+  const dt = performance.now() - t0;
+  gl.finish(); // drain after timing
+  return dt / iters;
+}
+
+window.runPerf = ({ mode, iters = 300, trials = 11 }) => {
+  engine.setGlobalStyle({ thicknessFalloff: 0, brushOverride: null, inkBlend: mode === "ink" });
+  for (let i = 0; i < 60; i++) engine.render(); // warm up shader compile / caches
+  gl.finish();
+
+  const structural = frameStats();
+  if (!rendered()) throw new Error(`blank frame in mode=${mode}`);
+
+  const cpu = [];
+  for (let t = 0; t < trials; t++) cpu.push(cpuTrial(iters));
+
+  return {
+    mode,
+    strokes: strokes.length,
+    structural,
+    // min = least-perturbed run (best estimate of true cost); median for stability.
+    cpuMsPerFrameMin: +Math.min(...cpu).toFixed(4),
+    cpuMsPerFrameMedian: +median(cpu).toFixed(4),
+  };
+};
+
+window.__ready = true;
+</script>
+</body>
+</html>

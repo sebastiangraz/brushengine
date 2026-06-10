@@ -1,6 +1,6 @@
 {
   "name": "brushengine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "author": "Sebastian Graz",
   "repository": {
@@ -29,7 +29,9 @@
       "require": "./dist/brushengine.cjs"
     }
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist"
   ],

@@ -29,7 +29,7 @@
       "require": "./dist/brushengine.cjs"
     }
   },
-  "prepublishOnly": "npm run build:lib",
+  "publishConfig": { "access": "public" },
   "files": [
     "dist"
   ],
@@ -41,7 +41,8 @@
     "gen:brushes": "node scripts/gen-brush-data.mjs",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "perf": "node perf/run.mjs",
-    "perf:compare": "node perf/compare.mjs"
+    "perf:compare": "node perf/compare.mjs",
+    "prepublishOnly": "npm run build:lib"
   },
   "peerDependencies": {
     "three": ">=0.160.0 <1"

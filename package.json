@@ -1,7 +1,22 @@
 {
   "name": "brushengine",
-  "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "author": "Sebastian Graz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastiangraz/brushengine.git"
+  },
+  "homepage": "https://github.com/sebastiangraz/brushengine#readme",
+  "bugs": {
+    "url": "https://github.com/sebastiangraz/brushengine/issues"
+  },
+  "keywords": [
+    "webgl",
+    "three.js",
+    "2-point perspective",
+    "generative cityscape"
+  ],
   "description": "Hand-drawn 2-point-perspective brush renderer with a generative cityscape.",
   "type": "module",
   "main": "./dist/brushengine.cjs",
@@ -14,6 +29,7 @@
       "require": "./dist/brushengine.cjs"
     }
   },
+  "prepublishOnly": "npm run build:lib",
   "files": [
     "dist"
   ],

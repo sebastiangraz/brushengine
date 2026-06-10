@@ -1,7 +1,11 @@
-// Public API for the brush-engine package.
+// Public API for the brush-engine package — the WebGL renderer and the math to
+// drive it. The generative scene/demo code (cityScene, palette, stroke helpers)
+// lives in the renderer-free "brushengine/scene" entry; import from there to
+// build or reproduce scenes.
 //
 // Quick start:
-//   import { BrushEngine, cityScene, DEFAULT_CITY } from "brushengine";
+//   import { BrushEngine, loadBrushTextures } from "brushengine";
+//   import { cityScene, DEFAULT_CITY } from "brushengine/scene";
 //   const engine = new BrushEngine(canvas);
 //   await engine.setBrushes(await loadBrushTextures());
 //   engine.setStrokes(cityScene(DEFAULT_CITY));
@@ -16,16 +20,6 @@
 export { BrushEngine } from "../engine/BrushEngine";
 export { loadBrushTextures } from "../engine/brushes";
 export { BRUSH_DATA_URIS } from "../engine/brushData";
-
-// --- the cityscape generator ---
-export {
-  cityScene,
-  DEFAULT_CITY,
-  encodeCity,
-  decodeCity,
-  type CityParams,
-} from "../scenes/city";
-export { PALETTE } from "../scenes/box";
 
 // --- projection helpers (CPU mirror of the shader; for guides/parallax math) ---
 export {

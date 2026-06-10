@@ -12,10 +12,16 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     lib: {
-      entry: resolve(__dirname, "src/lib/index.ts"),
-      name: "BrushEngine",
+      // Multi-entry: the main barrel keeps emitting brushengine.js/.cjs, and the
+      // renderer-free scene entry emits scene.js/.cjs. No UMD `name` — a single
+      // global is invalid with multiple entries, and es+cjs don't need one.
+      entry: {
+        brushengine: resolve(__dirname, "src/lib/index.ts"),
+        scene: resolve(__dirname, "src/lib/scene.ts"),
+      },
       formats: ["es", "cjs"],
-      fileName: (format) => `brushengine.${format === "es" ? "js" : "cjs"}`,
+      fileName: (format, entryName) =>
+        `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
       external: ["three"],

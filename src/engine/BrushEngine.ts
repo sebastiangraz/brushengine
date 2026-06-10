@@ -4,6 +4,7 @@ import {
   fragmentShader,
   compositeVertexShader,
   compositeFragmentShader,
+  whiteFillFragmentShader,
 } from "./shaders";
 import { buildMergedGeometry, type BatchItem } from "./Stroke";
 import type { GlobalStyle, ProjectionParams, StrokeData } from "./types";
@@ -64,21 +65,29 @@ export class BrushEngine {
   private target: THREE.WebGLRenderTarget;
   private compositeScene = new THREE.Scene();
   private compositeMat: THREE.RawShaderMaterial;
+  // Paints the white multiply-identity into the ink target (see whiteFillFragmentShader).
+  private whiteFillScene = new THREE.Scene();
+  private whiteFillMat: THREE.RawShaderMaterial;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
       antialias: true,
-      premultipliedAlpha: false,
+      // The composite pass emits premultiplied colour (see compositeFragmentShader),
+      // so the canvas must be a premultiplied-alpha surface.
+      premultipliedAlpha: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0xffffff, 0);
 
-    // Half-float keeps the multiply/un-premultiply precise (the un-premultiply
-    // divides by small alphas, which would band badly at 8-bit).
+    // Plain 8-bit is enough: the composite only SUBTRACTS to un-premultiply
+    // (Cp = T - (1 - a)), it never divides by alpha, so there's no precision
+    // blow-up at soft edges. We deliberately avoid a HalfFloat target here —
+    // Safari/WebKit can't reliably MSAA-resolve an RGBA16F colour buffer, which
+    // left the offscreen coverage aliased and the old divide amplified that into
+    // hard, pixelated brush edges. An 8-bit MSAA target resolves everywhere.
     this.target = new THREE.WebGLRenderTarget(1, 1, {
-      type: THREE.HalfFloatType,
       depthBuffer: false,
       stencilBuffer: false,
       magFilter: THREE.NearestFilter,
@@ -94,7 +103,7 @@ export class BrushEngine {
     this.compositeMat = new THREE.RawShaderMaterial({
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
-      uniforms: { uTex: { value: this.target.texture } },
+      uniforms: { uTex: { value: this.target.texture }, uInk: { value: 1 } },
       depthTest: false,
       depthWrite: false,
       blending: THREE.NoBlending,
@@ -102,6 +111,17 @@ export class BrushEngine {
     const mesh = new THREE.Mesh(quad, this.compositeMat);
     mesh.frustumCulled = false;
     this.compositeScene.add(mesh);
+
+    this.whiteFillMat = new THREE.RawShaderMaterial({
+      vertexShader: compositeVertexShader,
+      fragmentShader: whiteFillFragmentShader,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NoBlending,
+    });
+    const fillMesh = new THREE.Mesh(quad, this.whiteFillMat);
+    fillMesh.frustumCulled = false;
+    this.whiteFillScene.add(fillMesh);
   }
 
   setBrushes(textures: THREE.Texture[]) {
@@ -241,19 +261,30 @@ export class BrushEngine {
       if (this.brushes[bi]) u.uBrush.value = this.brushes[bi];
     }
 
+    // Both modes render into the offscreen MSAA target first, then a composite
+    // pass blits it to the canvas. Routing plain "over" through the same target
+    // (rather than straight to the default framebuffer) is deliberate: Safari
+    // won't reliably multisample the default drawing buffer, so direct-to-canvas
+    // strokes came out jagged — explicit render-target MSAA resolves everywhere.
+    this.renderer.setRenderTarget(this.target);
     if (this.global.inkBlend) {
-      // Pass 1: multiply the strokes into the white-cleared offscreen target
-      // (target.rgb = T over white, target.a = coverage).
-      this.renderer.setRenderTarget(this.target);
+      // Pass 1: multiply strokes into the target (target.rgb = T over white,
+      // target.a = coverage). The target MUST start at white RGB / zero alpha —
+      // white is the multiply identity, zero alpha means "no ink". Paint that
+      // identity with the white-fill quad (the clear can't produce it under
+      // premultiplied-alpha), then multiply the strokes over it without clearing.
+      this.renderer.render(this.whiteFillScene, this.camera);
+      this.renderer.autoClear = false;
       this.renderer.render(this.scene, this.camera);
-      // Pass 2: un-premultiply against white onto the transparent canvas.
-      this.renderer.setRenderTarget(null);
-      this.renderer.render(this.compositeScene, this.camera);
+      this.renderer.autoClear = true;
     } else {
-      // Plain alpha mode draws straight to the transparent canvas.
-      this.renderer.setRenderTarget(null);
+      // Plain "over": three clears the target to transparent (premultiplied
+      // (1,1,1,0) -> (0,0,0,0)), strokes composite premultiplied over it.
       this.renderer.render(this.scene, this.camera);
     }
+    this.compositeMat.uniforms.uInk.value = this.global.inkBlend ? 1 : 0;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.compositeScene, this.camera);
   };
 
   render() {
@@ -283,6 +314,7 @@ export class BrushEngine {
     this.batches = [];
     this.target.dispose();
     this.compositeMat.dispose();
+    this.whiteFillMat.dispose();
     this.renderer.dispose();
   }
 }

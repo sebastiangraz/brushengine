@@ -90,15 +90,19 @@ void main() {
   if (a < 0.01) discard;
 
   if (uInkBlend > 0.5) {
-    // CMYK ink mix on a transparent canvas. The RGB blend multiplies (dst * src)
-    // against a white-cleared framebuffer, so the colour we emit IS the multiply
-    // factor: a coverage-weighted mix(white, colour, a) — full ink darkens fully,
-    // faint/edge pixels barely darken (matches the old opaque-white look). Alpha
-    // carries straight coverage and accumulates "over", so non-ink stays
-    // transparent (the page shows through).
+    // CMYK ink mix into the white-cleared OFFSCREEN target (not the canvas, so
+    // the canvas's premultiplied-alpha mode doesn't apply here). The RGB blend
+    // multiplies (dst * src), so the colour we emit IS the multiply factor: a
+    // coverage-weighted mix(white, colour, a) — full ink darkens fully, faint/
+    // edge pixels barely darken. Alpha carries straight coverage and accumulates
+    // "over", so non-ink stays transparent (the page shows through).
     gl_FragColor = vec4(mix(vec3(1.0), vColor, a), a);
   } else {
-    gl_FragColor = vec4(vColor, a); // ordinary alpha "over"
+    // Ordinary "over" into the offscreen target. Emit STRAIGHT colour: three's
+    // NormalBlending picks its blend factors from material.premultipliedAlpha
+    // (false by default), so it uses SRC_ALPHA and premultiplies this once into
+    // the target. Pre-multiplying here as well would double it and darken edges.
+    gl_FragColor = vec4(vColor, a);
   }
 }
 `;
@@ -106,9 +110,12 @@ void main() {
 // --- ink-mix composite pass -------------------------------------------------
 // In ink mode the strokes are first drawn into an offscreen target cleared to
 // white: RGB multiplies (giving the exact opaque-white result T) while alpha
-// accumulates coverage. This pass un-premultiplies that against white, so the
-// result reproduces T at full strength when composited over the (white) page,
-// stays transparent where there's no ink, and composites correctly elsewhere.
+// accumulates coverage. This pass converts (T, coverage) into a PREMULTIPLIED
+// fragment for the premultiplied-alpha canvas: Cp = T - (1 - a). Composited over
+// the (white) page that reproduces T at full strength, stays transparent where
+// there's no ink, and is correct over any page colour. Crucially it only
+// subtracts — no divide by alpha — so an 8-bit target is precise enough and we
+// don't need a HalfFloat buffer (which Safari can't MSAA-resolve).
 export const compositeVertexShader = /* glsl */ `
 precision highp float;
 attribute vec2 aPos;
@@ -119,15 +126,34 @@ void main() {
 }
 `;
 
+// Fills the ink target with the multiply identity (white RGB, zero alpha). We
+// PAINT it rather than clear to it: under premultiplied-alpha the renderer
+// premultiplies every clear colour by its alpha, so a clear can never produce
+// (1,1,1,0) — and bypassing three's clear with a raw gl.clearColor desyncs its
+// cached clear state, which silently breaks later clears. A NoBlending quad
+// writes the exact value and leaves three's state untouched.
+export const whiteFillFragmentShader = /* glsl */ `
+precision highp float;
+void main() {
+  gl_FragColor = vec4(1.0, 1.0, 1.0, 0.0);
+}
+`;
+
 export const compositeFragmentShader = /* glsl */ `
 precision highp float;
 uniform sampler2D uTex;
+uniform float uInk;   // 1 = ink-mix target, 0 = plain "over" target (already premult)
 varying vec2 vUv;
 void main() {
-  vec4 t = texture2D(uTex, vUv);     // t.rgb = T (ink over white), t.a = coverage
+  vec4 t = texture2D(uTex, vUv);
   float a = t.a;
-  // Un-premultiply T against white: rgb*a + (1-a) == T  =>  rgb = (T-1+a)/a.
-  vec3 rgb = a > 1e-4 ? (t.rgb - (1.0 - a)) / a : vec3(0.0);
+  // Both modes render into the MSAA offscreen target (the only AA path Safari
+  // resolves reliably) and this pass blits it to the premultiplied canvas.
+  //   ink:    t.rgb = T (ink over white). Premultiplied output Cp = T - (1 - a),
+  //           which over a page of colour P gives T - (1-a)(1-P) — the ink-mix
+  //           result, with no divide so it stays smooth at 8-bit.
+  //   normal: t already holds premultiplied "over" colour; copy it straight.
+  vec3 rgb = uInk > 0.5 ? (t.rgb - (1.0 - a)) : t.rgb;
   gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), a);
 }
 `;

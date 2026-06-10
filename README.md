@@ -13,17 +13,21 @@ npm run build:lib  # build the distributable package (-> dist/)
 
 ## Use as a package
 
-The renderer and the city generator ship as a framework-agnostic library
-(`src/lib/index.ts`), built with Vite library mode (`npm run build:lib`). It has
-**no React dependency** and a single **peer dependency on `three`**. The two
+The renderer ships as a framework-agnostic library (`src/lib/index.ts`), built
+with Vite library mode (`npm run build:lib`). It has **no React dependency** and
+a single **peer dependency on `three`**. The two
 brush SVGs are base64-**inlined** (`src/engine/brushData.ts`, regenerate with
 `npm run gen:brushes`), so the package is self-contained — nothing to copy or
 serve.
 
+The package has two entry points: **`brushengine`** is the renderer API
+(`BrushEngine`, brush loading, projection math, types); **`brushengine/scene`**
+is the renderer-free scene toolkit (the `cityScene` generator, stroke/vector
+helpers, palette, data types) — no `three`, no DOM, SSR-safe.
+
 ```ts
-import {
-  BrushEngine, loadBrushTextures, cityScene, DEFAULT_CITY,
-} from "brushengine";
+import { BrushEngine, loadBrushTextures } from "brushengine";
+import { cityScene, DEFAULT_CITY } from "brushengine/scene"; // no three, SSR-safe
 
 const engine = new BrushEngine(canvas);          // a <canvas> element
 engine.setBrushes(await loadBrushTextures());    // inlined data URIs by default
@@ -34,6 +38,19 @@ engine.start();                                  // dirty-flagged loop; idle = f
 
 The engine touches `document` at import time, so on SSR frameworks (Next, etc.)
 import and construct it **client-side only** (dynamic import in an effect).
+
+`brushengine/scene` is also where the stroke-authoring toolkit lives, so you can
+build your own scenes (not just the bundled city) without the renderer — the
+`line` wobble helper, the `Vec3` math (`add`, `sub`, `scale`, `lerp`, `norm`,
+`cross`), the `PALETTE`, and the `StrokeData` types:
+
+```ts
+import { line, PALETTE, type StrokeData } from "brushengine/scene";
+
+const strokes: StrokeData[] = [
+  { points: line([0, 0, 0], [0, 1, 0]), style: { color: PALETTE.teal, widthPx: 12, brush: 0, opacity: 1 } },
+];
+```
 
 ### Parallax on scroll
 
@@ -150,7 +167,8 @@ src/
     brushData.ts    base64-inlined brush SVGs (generated; npm run gen:brushes)
     BrushEngine.ts  renderer, per-brush batched meshes, dirty-flagged render loop
   lib/
-    index.ts        public package API (re-exports engine + city + types)
+    index.ts        "brushengine" — renderer API (engine + projection + types)
+    scene.ts        "brushengine/scene" — renderer-free scene toolkit + demos
   scenes/
     helpers.ts      subdivide + wobble a segment into a hand-drawn polyline
     box.ts          gridded building

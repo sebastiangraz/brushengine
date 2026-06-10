@@ -1,16 +1,28 @@
 import type { Vec3 } from "../engine/types";
 
-const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const scale = (a: Vec3, s: number): Vec3 => [a[0] * s, a[1] * s, a[2] * s];
-const lerp = (a: Vec3, b: Vec3, t: number): Vec3 =>
+export const add = (a: Vec3, b: Vec3): Vec3 => [
+  a[0] + b[0],
+  a[1] + b[1],
+  a[2] + b[2],
+];
+export const sub = (a: Vec3, b: Vec3): Vec3 => [
+  a[0] - b[0],
+  a[1] - b[1],
+  a[2] - b[2],
+];
+export const scale = (a: Vec3, s: number): Vec3 => [
+  a[0] * s,
+  a[1] * s,
+  a[2] * s,
+];
+export const lerp = (a: Vec3, b: Vec3, t: number): Vec3 =>
   add(a, scale(sub(b, a), t));
 
-function norm(a: Vec3): Vec3 {
+export function norm(a: Vec3): Vec3 {
   const l = Math.hypot(a[0], a[1], a[2]) || 1;
   return [a[0] / l, a[1] / l, a[2] / l];
 }
-function cross(a: Vec3, b: Vec3): Vec3 {
+export function cross(a: Vec3, b: Vec3): Vec3 {
   return [
     a[1] * b[2] - a[2] * b[1],
     a[2] * b[0] - a[0] * b[2],

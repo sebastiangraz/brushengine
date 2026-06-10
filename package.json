@@ -1,6 +1,6 @@
 {
   "name": "brushengine",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "author": "Sebastian Graz",
   "repository": {
@@ -27,6 +27,11 @@
       "types": "./dist/types/lib/index.d.ts",
       "import": "./dist/brushengine.js",
       "require": "./dist/brushengine.cjs"
+    },
+    "./scene": {
+      "types": "./dist/types/lib/scene.d.ts",
+      "import": "./dist/scene.js",
+      "require": "./dist/scene.cjs"
     }
   },
   "publishConfig": {
@@ -42,9 +47,10 @@
     "preview": "vite preview",
     "gen:brushes": "node scripts/gen-brush-data.mjs",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
+    "check:scene": "node scripts/check-scene-pure.mjs",
     "perf": "node perf/run.mjs",
     "perf:compare": "node perf/compare.mjs",
-    "prepublishOnly": "npm run build:lib"
+    "prepublishOnly": "npm run build:lib && npm run check:scene"
   },
   "peerDependencies": {
     "three": ">=0.160.0 <1"
